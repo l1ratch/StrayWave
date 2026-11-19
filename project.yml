@@ -27,8 +27,11 @@ settings:
     CD_BUILD: "4"
 
 options:
+  # Пока самый свежий SDK на раннерах — iOS 26.x (Xcode 26.6): при target 27.0
+  # xcodebuild отбрасывает все simulator-destinations (их OS < target).
+  # Вернуть "27.0" после появления iOS 27 SDK.
   deploymentTarget:
-    iOS: "27.0"
+    iOS: "26.0"
   createIntermediateGroups: true
 
 targets:
