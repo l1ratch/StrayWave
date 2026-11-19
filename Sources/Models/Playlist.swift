@@ -9,7 +9,9 @@ final class Playlist {
     /// Порядок треков хранится явно — так плейлист можно переставлять.
     var itemIDs: [UUID]
     /// Плейлисты бывают музыкальные и видео — тип задаётся при создании.
-    var kindRaw: String
+    /// Дефолт на уровне свойства — чтобы SwiftData легаси-мигрировала
+    /// существующие хранилища без создания новой версии схемы.
+    var kindRaw: String = MediaKind.audio.rawValue
 
     init(
         id: UUID = UUID(),
