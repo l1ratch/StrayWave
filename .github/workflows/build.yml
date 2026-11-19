@@ -48,6 +48,12 @@ jobs:
       - name: Generate Xcode Project
         run: xcodegen generate
 
+      # На части образов у свежего Xcode нет iOS simulator runtime
+      # (есть только visionOS). Команда идемпотентна: при наличии runtime
+      # завершается мгновенно.
+      - name: Ensure iOS simulator runtime
+        run: xcodebuild -downloadPlatform iOS
+
       - name: Run unit tests
         run: |
           # Первый доступный iPhone-симулятор, чтобы не зависеть от имён моделей.

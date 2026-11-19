@@ -1,5 +1,6 @@
 import Foundation
 import SwiftUI
+import SwiftData
 
 /// Режим встроенного импорта из меню «+».
 enum ImportMode: String, Sendable {

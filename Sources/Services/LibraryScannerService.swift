@@ -68,7 +68,9 @@ actor LibraryScannerService {
             includingPropertiesForKeys: [.isRegularFileKey, .fileSizeKey, .contentModificationDateKey],
             options: [.skipsHiddenFiles]
         ) {
-            for case let url as URL in enumerator {
+            // nextObject() вместо for-in: итератор DirectoryEnumerator
+            // недоступен из асинхронного контекста (Swift 6).
+            while let url = enumerator.nextObject() as? URL {
                 guard (try? url.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) == true else { continue }
                 fileURLs.append(url)
             }

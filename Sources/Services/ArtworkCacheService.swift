@@ -73,8 +73,8 @@ actor ArtworkCacheService {
             generator.appliesPreferredTrackTransform = true
             generator.requestedTimeToleranceBefore = CMTime(seconds: 1, preferredTimescale: 600)
             generator.requestedTimeToleranceAfter = CMTime(seconds: 1, preferredTimescale: 600)
-            guard let image = try? await generator.image(at: time) else { return nil }
-            return storeJPEG(image, itemID: itemID)
+            guard let result = try? await generator.image(at: time) else { return nil }
+            return storeJPEG(result.image, itemID: itemID)
         }
     }
 
