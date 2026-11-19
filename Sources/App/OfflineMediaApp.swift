@@ -9,8 +9,8 @@ struct OfflineMediaApp: App {
     private let container: ModelContainer
 
     /// Под test host нельзя трогать дисковое хранилище и сканер: тесты чистые.
-    static let isRunningTests = NSProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
-        || NSProcessInfo.processInfo.environment["XCTestSessionIdentifier"] != nil
+    static let isRunningTests = ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
+        || ProcessInfo.processInfo.environment["XCTestSessionIdentifier"] != nil
 
     init() {
         do {
