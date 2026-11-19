@@ -138,22 +138,29 @@ struct PlaybackQueueLogic: Equatable, Sendable {
 
     /// «В конец очереди».
     mutating func append(_ id: UUID) {
+        let current = currentItemID
         originalOrder.removeAll { $0 == id }
         playOrder.removeAll { $0 == id }
         originalOrder.append(id)
         playOrder.append(id)
-        if currentIndex == nil { currentIndex = 0 }
-    }
-
-    mutating func move(fromOffsets offsets: IndexSet, toOffset destination: Int) {
-        playOrder.move(fromOffsets: offsets, toOffset: destination)
-        if let current = currentItemID {
+        if let current {
             currentIndex = playOrder.firstIndex(of: current)
+        } else if currentIndex == nil {
+            currentIndex = 0
         }
     }
 
+    mutating func move(fromOffsets offsets: IndexSet, toOffset destination: Int) {
+        // Текущий ID фиксируем ДО перестановки: после неё старый индекс
+        // уже указывает на другой элемент.
+        let current = currentItemID
+        playOrder.move(fromOffsets: offsets, toOffset: destination)
+        currentIndex = current.flatMap { playOrder.firstIndex(of: $0) }
+    }
+
     mutating func remove(id: UUID) {
-        let wasCurrent = currentItemID == id
+        let current = currentItemID
+        let wasCurrent = current == id
         let oldIndex = currentIndex
         originalOrder.removeAll { $0 == id }
         playOrder.removeAll { $0 == id }
@@ -161,7 +168,7 @@ struct PlaybackQueueLogic: Equatable, Sendable {
             currentIndex = nil
         } else if wasCurrent {
             currentIndex = min(oldIndex ?? 0, playOrder.count - 1)
-        } else if let current = currentItemID {
+        } else if let current {
             currentIndex = playOrder.firstIndex(of: current)
         }
     }

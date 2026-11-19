@@ -8,9 +8,20 @@ struct OfflineMediaApp: App {
     private let environment = AppEnvironment.shared
     private let container: ModelContainer
 
+    /// Под test host нельзя трогать дисковое хранилище и сканер: тесты чистые.
+    static let isRunningTests = NSProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
+        || NSProcessInfo.processInfo.environment["XCTestSessionIdentifier"] != nil
+
     init() {
         do {
-            container = try ModelContainer(for: MediaItem.self, Playlist.self)
+            if Self.isRunningTests {
+                container = try ModelContainer(
+                    for: MediaItem.self, Playlist.self,
+                    configurations: ModelConfiguration(isStoredInMemoryOnly: true)
+                )
+            } else {
+                container = try ModelContainer(for: MediaItem.self, Playlist.self)
+            }
         } catch {
             fatalError("Не удалось открыть хранилище библиотеки: \(error)")
         }
@@ -31,7 +42,11 @@ struct OfflineMediaApp: App {
                           let id = UUID(uuidString: identifier) else { return }
                     Task { await environment.playFromSpotlight(id: id) }
                 }
-                .task { await environment.configure(container: container) }
+                .task {
+                    if !Self.isRunningTests {
+                        await environment.configure(container: container)
+                    }
+                }
                 .onChange(of: scenePhase) { _, phase in
                     Task { await environment.handleScenePhase(phase) }
                 }

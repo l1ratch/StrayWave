@@ -113,4 +113,23 @@ struct QueueLogicTests {
         #expect(queue.playOrder.sorted { $0.uuidString < $1.uuidString }
             == list.sorted { $0.uuidString < $1.uuidString })
     }
+
+    @Test("Повторное добавление в конец элемента перед текущим не сдвигает указатель")
+    func appendDuplicateBeforeCurrent() {
+        let list = ids(4)
+        var queue = PlaybackQueueLogic(items: list, currentIndex: 2)
+        queue.append(list[0]) // уже в очереди, переезжает в конец
+        #expect(queue.currentItemID == list[2])
+        #expect(queue.playOrder.last == list[0])
+        #expect(queue.playOrder.count == 4)
+    }
+
+    @Test("Удаление элемента перед текущим не сдвигает указатель")
+    func removeBeforeCurrent() {
+        let list = ids(4)
+        var queue = PlaybackQueueLogic(items: list, currentIndex: 2)
+        queue.remove(id: list[0])
+        #expect(queue.currentItemID == list[2])
+        #expect(queue.playOrder == [list[1], list[2], list[3]])
+    }
 }
