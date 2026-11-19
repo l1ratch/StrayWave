@@ -1,0 +1,61 @@
+name: ClipDeck
+options:
+  deploymentTarget:
+    iOS: "27.0"
+  createIntermediateGroups: true
+
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    SWIFT_STRICT_CONCURRENCY: complete
+    DEVELOPMENT_TEAM: 9U945T6L7A
+    MARKETING_VERSION: "1.0.0"
+    CURRENT_PROJECT_VERSION: "1"
+
+targets:
+  ClipDeck:
+    type: application
+    platform: iOS
+    sources:
+      - path: Sources
+      - path: Resources/Assets.xcassets
+    settings:
+      base:
+        PRODUCT_NAME: ClipDeck
+        PRODUCT_BUNDLE_IDENTIFIER: app.yam53.taro5888
+        INFOPLIST_FILE: Resources/Info.plist
+        CODE_SIGN_ENTITLEMENTS: Resources/ClipDeck.entitlements
+        TARGETED_DEVICE_FAMILY: "1,2"
+        GENERATE_INFOPLIST_FILE: NO
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ENABLE_USER_SCRIPT_SANDBOXING: YES
+
+  # Юнит-тесты (Swift Testing). Это НЕ appex и в .ipa не попадает:
+  # бандл существует только для локальной проверки и CI-теста.
+  ClipDeckTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: Tests
+    dependencies:
+      - target: ClipDeck
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: app.yam53.taro5888.tests
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/ClipDeck.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/ClipDeck"
+        BUNDLE_LOADER: "$(TEST_HOST)"
+
+schemes:
+  ClipDeck:
+    build:
+      targets:
+        ClipDeck: all
+    run:
+      config: Debug
+    archive:
+      config: Release
+    test:
+      config: Debug
+      targets:
+        - ClipDeckTests

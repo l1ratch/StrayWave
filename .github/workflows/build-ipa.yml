@@ -1,0 +1,108 @@
+name: Build ClipDeck IPA
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+    branches:
+      - main
+
+concurrency:
+  group: clipdeck-build
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: macos-26 # при появлении образа переключить на macos-27
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select latest Xcode
+        run: |
+          LATEST_XCODE=$(ls -d /Applications/Xcode*.app | sort -V | tail -n 1)
+          echo "Selected Xcode: $LATEST_XCODE"
+          sudo xcode-select -s "$LATEST_XCODE/Contents/Developer"
+          xcodebuild -version
+          xcodebuild -showsdks
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        run: xcodegen generate
+
+      - name: Build unsigned Release app
+        run: |
+          xcodebuild \
+            -project ClipDeck.xcodeproj \
+            -scheme ClipDeck \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            COMPILER_INDEX_STORE_ENABLE=NO \
+            build 2>&1 | tee build_output.log
+
+      - name: Upload build log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log
+          path: build_output.log
+          if-no-files-found: ignore
+
+      - name: Package unsigned IPA
+        run: |
+          mkdir -p dist/Payload
+          cp -r build/Build/Products/Release-iphoneos/ClipDeck.app dist/Payload/
+          cd dist
+          zip -r -y ../ClipDeck-unsigned.ipa Payload
+
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ClipDeck-unsigned-ipa
+          path: ClipDeck-unsigned.ipa
+
+  # Логика очереди/путей/дедупликации — Swift Testing на симуляторе.
+  test:
+    runs-on: macos-26
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select latest Xcode
+        run: |
+          LATEST_XCODE=$(ls -d /Applications/Xcode*.app | sort -V | tail -n 1)
+          sudo xcode-select -s "$LATEST_XCODE/Contents/Developer"
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        run: xcodegen generate
+
+      - name: Run unit tests
+        run: |
+          # Первый доступный iPhone-симулятор, чтобы не зависеть от имён моделей.
+          UDID=$(xcrun simctl list devices available --json | python3 -c '
+          import json,sys
+          data = json.load(sys.stdin)
+          for runtime, devices in sorted(data["devices"].items(), reverse=True):
+              for d in devices:
+                  if d["name"].startswith("iPhone"):
+                      print(d["udid"]); sys.exit(0)
+          sys.exit(1)')
+          echo "Simulator: $UDID"
+          xcodebuild \
+            -project ClipDeck.xcodeproj \
+            -scheme ClipDeck \
+            -destination "platform=iOS Simulator,id=$UDID" \
+            -derivedDataPath build-tests \
+            CODE_SIGNING_ALLOWED=NO \
+            test
