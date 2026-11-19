@@ -207,14 +207,16 @@ jobs:
           echo "project.yml: CD_BUILD=${{ steps.bump.outputs.next }}"
         shell: bash
 
-      # GBox-источник: IPA + манифест (AltStore-формат) в gh-pages.
+      # GBox-источник: только манифест (AltStore-формат) в gh-pages.
+      # Сам IPA лежит ОДНИМ ассетом preview.ipa в prerelease «preview» и
+      # заменяется каждый прогон (шаг ниже, --clobber) — на Pages бинарь
+      # не храним.
       - name: Publish to gh-pages
         run: |
           set -e
           VER="${{ steps.ver.outputs.build }}"
           VERSION="${{ steps.ver.outputs.version }}"
           SIZE=$(stat -f%z ClipDeck.ipa)
-          cp ClipDeck.ipa /tmp/clipdeck.ipa
           cp ClipDeck.ipa /tmp/preview.ipa
           cat > /tmp/source.json <<EOF
           {
@@ -230,7 +232,7 @@ jobs:
                 "versionDate": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
                 "versionDescription": "preview build $VER",
                 "size": $SIZE,
-                "downloadURL": "https://l1ratch.github.io/ClipDeck/clipdeck.ipa",
+                "downloadURL": "https://github.com/l1ratch/ClipDeck/releases/download/preview/preview.ipa",
                 "localizedDescription": "Оффлайн медиаплеер для iOS. Неподписанный IPA — GBox подпишет при установке вашим Ad-Hoc профилем."
               }
             ]
@@ -241,9 +243,8 @@ jobs:
           git fetch origin gh-pages --depth=1 || true
           git checkout -B gh-pages FETCH_HEAD 2>/dev/null || git checkout --orphan gh-pages
           git rm -rf --cached . >/dev/null 2>&1 || true
-          cp /tmp/clipdeck.ipa clipdeck.ipa
           cp /tmp/source.json source.json
-          git add -f clipdeck.ipa source.json
+          git add -f source.json
           git commit -m "publish preview $VERSION" || echo "no changes"
           git push -f origin gh-pages
         shell: bash
