@@ -19,7 +19,18 @@ xcodebuild -project ClipDeck.xcodeproj -scheme ClipDeck \
   CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" build
 ```
 
-Или запустите workflow **Build ClipDeck IPA** в GitHub Actions — заберите артефакт `ClipDeck-unsigned.ipa`.
+Или заберите готовый IPA из GitHub: превью — в prerelease **`preview`** или артефактах workflow **Build Preview IPA**, стабильный — в релизе по тегу.
+
+## Версионирование и CI (как в WSBridge-iOS)
+
+Версия `X.Y.N`, единственный источник правды — `CD_VERSION`/`CD_BUILD` в `project.yml`:
+- **X, Y** поднимаются вручную по явной команде («выложи релизную версию»), CI их не трогает.
+- **N** — монотонный номер сборки: превью-CI публикует `X.Y.N` и сам коммитит `N+1` в main (`[skip ci]`, защита от рекурсии).
+- **Превью**: пуш в main → `build.yml` собирает unsigned IPA, сверяет версию в собранном `Info.plist` с project.yml, обновляет prerelease `preview` и GBox-источник на gh-pages.
+- **Стабильный релиз**: поднять X/Y (и при желании N) в `project.yml`, запушить в main, создать тег `vX.Y.N` → `release.yml` проверит совпадение тега с версией и выложит `ClipDeck-vX.Y.N.ipa`.
+- **Тесты**: отдельный джоб **Unit Tests** в `build.yml` (Swift Testing на первом доступном iPhone-симуляторе), не блокирует публикацию превью.
+
+GBox/AltStore-источник превью: `https://l1ratch.github.io/ClipDeck/source.json`.
 
 ## Подпись (Ad-Hoc, explicit App ID `app.yam53.taro5888`)
 

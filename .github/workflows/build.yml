@@ -1,0 +1,260 @@
+name: Build Preview IPA
+
+# ── Версионирование X.Y.N ────────────────────────────────────────────────
+# X, Y поднимаются ВРУЧНУЮ в project.yml, только по явной команде
+# «выложи релизную версию». CI их НЕ трогает.
+# N поднимает САМ CI: каждая успешная сборка в превью публикует X.Y.N и
+# оставляет в project.yml N+1 для следующей сборки.
+#
+# Превью: пуш в main → ОДИН обновляемый prerelease «preview» + gh-pages.
+#         Теги v* НЕ создаются.
+# Релиз:  только по явной команде — вручную поднять X/Y (и, если надо, N)
+#         в project.yml, запушить тег vX.Y.N → release.yml.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+# Сборки идут строго по очереди: две параллельные не должны прочитать один
+# и тот же N и обе записать N+1.
+concurrency:
+  group: preview-build
+  cancel-in-progress: false
+
+jobs:
+  # Логика очереди/путей/дедупликации — Swift Testing на симуляторе.
+  # Отдельный джоб: не блокирует публикацию превью, но виден в статусе.
+  test:
+    name: Unit Tests
+    runs-on: macos-26 # при появлении образа переключить на macos-27
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.0.0
+        with:
+          fetch-depth: 1
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Set Xcode Version
+        run: |
+          XC=$(ls -d /Applications/Xcode*.app | sort -V | tail -1)
+          sudo xcode-select -s "$XC/Contents/Developer"
+          xcodebuild -version
+
+      - name: Generate Xcode Project
+        run: xcodegen generate
+
+      - name: Run unit tests
+        run: |
+          # Первый доступный iPhone-симулятор, чтобы не зависеть от имён моделей.
+          UDID=$(xcrun simctl list devices available --json | python3 -c '
+          import json,sys
+          data = json.load(sys.stdin)
+          for runtime, devices in sorted(data["devices"].items(), reverse=True):
+              for d in devices:
+                  if d["name"].startswith("iPhone"):
+                      print(d["udid"]); sys.exit(0)
+          sys.exit(1)')
+          echo "Simulator: $UDID"
+          xcodebuild \
+            -project ClipDeck.xcodeproj \
+            -scheme ClipDeck \
+            -destination "platform=iOS Simulator,id=$UDID" \
+            -derivedDataPath build-tests \
+            CODE_SIGNING_ALLOWED=NO \
+            test
+        shell: bash
+
+  build_ipa:
+    name: Build iOS Preview IPA
+    # Пуш бампа делается GITHUB_TOKEN от лица бота: GitHub не запускает
+    # workflow на такие пуши. Плюс [skip ci] в сообщении коммита.
+    # Эта проверка — третий уровень защиты от рекурсии.
+    if: github.actor != 'github-actions[bot]'
+    runs-on: macos-26 # при появлении образа переключить на macos-27
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.0.0
+        with:
+          fetch-depth: 1
+          # persist-credentials по умолчанию true: oauth-токен остаётся
+          # в .git/config, финальному git push не нужен отдельный секрет.
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Set Xcode Version
+        run: |
+          ls /Applications/ | grep -i xcode
+          XC=$(ls -d /Applications/Xcode*.app | sort -V | tail -1)
+          sudo xcode-select -s "$XC/Contents/Developer"
+          xcodebuild -version
+
+      - name: Read version
+        id: ver
+        run: |
+          # project.yml — единственный источник правды. N здесь — это
+          # номер ТЕКУЩЕЙ сборки; после публикации CI запишет N+1.
+          BUILD=$(grep -m1 'CD_BUILD:' project.yml | sed -E 's/.*"([0-9]+)".*/\1/')
+          BLOCK=$(grep -m1 'CD_VERSION:' project.yml | sed -E 's/.*"([^"]+)".*/\1/')
+          echo "build=$BUILD" >> "$GITHUB_OUTPUT"
+          echo "version=$BLOCK.$BUILD" >> "$GITHUB_OUTPUT"
+          echo "ClipDeck preview build=$BLOCK.$BUILD"
+        shell: bash
+
+      - name: Generate Xcode Project
+        run: xcodegen generate
+
+      - name: Build iOS App (no codesign)
+        run: |
+          xcodebuild -project ClipDeck.xcodeproj \
+            -scheme ClipDeck \
+            -configuration Release \
+            -sdk iphoneos \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            DEBUG_INFORMATION_FORMAT=dwarf \
+            COMPILER_INDEX_STORE_ENABLE=NO \
+            build 2>&1 | tee build_output.log
+        shell: bash
+
+      # Лог ошибок компиляции — артефактом, не коммитом в main.
+      - name: Upload build log on failure
+        if: failure()
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        with:
+          name: build-log
+          path: build_output.log
+          if-no-files-found: ignore
+
+      - name: Verify version in built app
+        run: |
+          APP_PLIST=$(find build -name "Info.plist" -path "*.app/*" | head -n 1)
+          SHORT=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$APP_PLIST")
+          BUNDLE=$(/usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "$APP_PLIST")
+          echo "plist: CFBundleShortVersionString=$SHORT CFBundleVersion=$BUNDLE"
+          EXPECT_SHORT="${{ steps.ver.outputs.version }}"
+          EXPECT_BUILD="${{ steps.ver.outputs.build }}"
+          if [ "$SHORT" != "$EXPECT_SHORT" ] || [ "$BUNDLE" != "$EXPECT_BUILD" ]; then
+            echo "::error::Версия в приложении ($SHORT / $BUNDLE) не совпадает с project.yml ($EXPECT_SHORT / $EXPECT_BUILD)."
+            exit 1
+          fi
+          echo "Версия в приложении совпадает с project.yml"
+        shell: bash
+
+      - name: Package Unsigned IPA
+        run: |
+          mkdir -p Payload
+          APP_PATH=$(find build -name "*.app" -type d | head -n 1)
+          echo "Found app at: $APP_PATH"
+          cp -r "$APP_PATH" Payload/
+          zip -r "ClipDeck.ipa" Payload
+          rm -rf Payload
+
+      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        with:
+          name: ClipDeck-IPA
+          path: ClipDeck.ipa
+          if-no-files-found: error
+
+      # Готовим bump N ЛОКАЛЬНО (без пуша), пока HEAD ещё на main.
+      - name: Stage next build number
+        id: bump
+        run: |
+          set -e
+          CUR=$(grep -m1 'CD_BUILD:' project.yml | sed -E 's/.*"([0-9]+)".*/\1/')
+          NEXT=$((CUR + 1))
+          # -i.bak работает и в BSD sed (macOS), и в GNU sed.
+          sed -i.bak -E "s/(CD_BUILD: \")[0-9]+(\")/\1${NEXT}\2/" project.yml
+          rm -f project.yml.bak
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add project.yml
+          git commit -m "chore: next preview build ${NEXT} [skip ci]"
+          echo "next=$NEXT" >> "$GITHUB_OUTPUT"
+          echo "Следующая превью-сборка: $(grep -m1 'CD_VERSION:' project.yml | sed -E 's/.*"([^"]+)".*/\1/').$NEXT"
+        shell: bash
+
+      # Пушим bump СРАЗУ, пока HEAD ещё на main: следующий шаг уводит HEAD
+      # в gh-pages, и пушить bump оттуда уже нельзя. [skip ci] + actor=bot
+      # не дают рекурсии (пуш от GITHUB_TOKEN не триггерит workflow).
+      - name: Push next build number
+        if: github.ref == 'refs/heads/main'
+        run: |
+          set -e
+          # concurrency: ХА сериализует сборки, поэтому гонки почти нет;
+          # на всякий случай один rebase-retry, если main ушёл вперёд.
+          if ! git push origin HEAD:refs/heads/main; then
+            git fetch origin main
+            git rebase origin/main
+            git push origin HEAD:refs/heads/main
+          fi
+          echo "project.yml: CD_BUILD=${{ steps.bump.outputs.next }}"
+        shell: bash
+
+      # GBox-источник: IPA + манифест (AltStore-формат) в gh-pages.
+      - name: Publish to gh-pages
+        run: |
+          set -e
+          VER="${{ steps.ver.outputs.build }}"
+          VERSION="${{ steps.ver.outputs.version }}"
+          SIZE=$(stat -f%z ClipDeck.ipa)
+          cp ClipDeck.ipa /tmp/clipdeck.ipa
+          cp ClipDeck.ipa /tmp/preview.ipa
+          cat > /tmp/source.json <<EOF
+          {
+            "name": "ClipDeck",
+            "identifier": "clipdeck.gh",
+            "sourceURL": "https://l1ratch.github.io/ClipDeck/source.json",
+            "apps": [
+              {
+                "name": "ClipDeck",
+                "bundleIdentifier": "app.yam53.taro5888",
+                "developerName": "l1ratch",
+                "version": "$VERSION",
+                "versionDate": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+                "versionDescription": "preview build $VER",
+                "size": $SIZE,
+                "downloadURL": "https://l1ratch.github.io/ClipDeck/clipdeck.ipa",
+                "localizedDescription": "Оффлайн медиаплеер для iOS. Неподписанный IPA — GBox подпишет при установке вашим Ad-Hoc профилем."
+              }
+            ]
+          }
+          EOF
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git fetch origin gh-pages --depth=1 || true
+          git checkout -B gh-pages FETCH_HEAD 2>/dev/null || git checkout --orphan gh-pages
+          git rm -rf --cached . >/dev/null 2>&1 || true
+          cp /tmp/clipdeck.ipa clipdeck.ipa
+          cp /tmp/source.json source.json
+          git add -f clipdeck.ipa source.json
+          git commit -m "publish preview $VERSION" || echo "no changes"
+          git push -f origin gh-pages
+        shell: bash
+
+      # ОДИН И ТОТ ЖЕ prerelease «preview»: обновляем in-place,
+      # а не удаляем/пересоздаём. Ассет заменяется через --clobber.
+      - name: Update preview release (in place)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          VERSION="${{ steps.ver.outputs.version }}"
+          BUILD="${{ steps.ver.outputs.build }}"
+          NOTES="Превью-сборка $VERSION (build $BUILD) с последнего пуша в main. Стабильные релизы публикуются только по тегу vX.Y.N. Unsigned IPA — подпись через Scripts/resign.sh или GBox/AltStore."
+          if gh release view preview >/dev/null 2>&1; then
+            gh release edit preview --title "Preview $VERSION" --notes "$NOTES"
+            gh release upload preview /tmp/preview.ipa --clobber
+          else
+            gh release create preview /tmp/preview.ipa \
+              --title "Preview $VERSION" \
+              --notes "$NOTES" \
+              --prerelease
+          fi
+        shell: bash

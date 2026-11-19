@@ -1,16 +1,35 @@
 name: ClipDeck
-options:
-  deploymentTarget:
-    iOS: "27.0"
-  createIntermediateGroups: true
 
+# ── Версия: X.Y.N ─────────────────────────────────────────────────────────
+# X — глобальные изменения. Поднимается ВРУЧНУЮ и только по явной команде
+#     («выложи релизную версию»).
+# Y — крупные изменения: поднимается на каждом СТАБИЛЬНОМ релизе, тоже
+#     вручную, по явной команде.
+# N — номер сборки CI. КАЖДАЯ сборка в превью публикует текущий N и САМА
+#     поднимает его здесь до N+1 для следующего пуша. Число монотонное, не
+#     сбрасывается при смене X/Y (CFBundleVersion обязан расти). Здесь лежит
+#     номер СЛЕДУЮЩЕЙ сборки.
+#
+# CD_VERSION = "X.Y" (строка), CD_BUILD = N (число).
+# Итог "<CD_VERSION>.<CD_BUILD>" идёт в CFBundleShortVersionString, в
+# манифест GBox и в названия превью/релизов. CFBundleVersion = CD_BUILD.
+#
+# Превью: пуш в main → build.yml бампит N, собирает и ОБНОВЛЯЕТ один и тот же
+#         prerelease «preview» + gh-pages. Теги v* НЕ создаются.
+# Релиз:  только по явной команде — вручную поднять X/Y (и, если надо, N)
+#         здесь, запушить тег vX.Y.N → сработает release.yml.
 settings:
   base:
     SWIFT_VERSION: "6.0"
     SWIFT_STRICT_CONCURRENCY: complete
     DEVELOPMENT_TEAM: 9U945T6L7A
-    MARKETING_VERSION: "1.0.0"
-    CURRENT_PROJECT_VERSION: "1"
+    CD_VERSION: "1.0"
+    CD_BUILD: "1"
+
+options:
+  deploymentTarget:
+    iOS: "27.0"
+  createIntermediateGroups: true
 
 targets:
   ClipDeck:

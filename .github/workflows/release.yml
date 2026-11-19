@@ -1,0 +1,92 @@
+name: Release (Tag v*)
+
+# Релизный сборщик. Запускается ТОЛЬКО пушем тега v1.0.1 / v1.1.0 и т.п.
+# Создаёт GitHub Release с unsigned IPA.
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build_and_release:
+    name: Build & Release IPA
+    runs-on: macos-26 # при появлении образа переключить на macos-27
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.0.0
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Set Xcode Version
+        run: |
+          ls /Applications/ | grep -i xcode
+          XC=$(ls -d /Applications/Xcode*.app | sort -V | tail -1)
+          sudo xcode-select -s "$XC/Contents/Developer"
+          xcodebuild -version
+
+      - name: Check tag matches version
+        run: |
+          # Стабильный релиз — ТОЛЬКО по тегу vX.Y.N, который вручную
+          # создаёт разработчик. Тег обязан совпадать с project.yml:
+          # "<CD_VERSION>.<CD_BUILD>". CI превью теги НЕ создаёт.
+          BUILD=$(grep -m1 'CD_BUILD:' project.yml | sed -E 's/.*"([0-9]+)".*/\1/')
+          BLOCK=$(grep -m1 'CD_VERSION:' project.yml | sed -E 's/.*"([^"]+)".*/\1/')
+          EXPECTED="v$BLOCK.$BUILD"
+          TAG="${{ github.ref_name }}"
+          if [ "$TAG" != "$EXPECTED" ]; then
+            echo "::error::Тег $TAG не совпадает с версией $BLOCK.$BUILD (ожидался $EXPECTED)."
+            echo "Релиз выкладывается только по явной команде: подними X/Y (и при желании N) в project.yml, запушь в main, потом создай тег $EXPECTED."
+            exit 1
+          fi
+          echo "Тег $TAG совпадает с версией $BLOCK.$BUILD"
+        shell: bash
+
+      - name: Generate Xcode Project
+        run: xcodegen generate
+
+      - name: Build iOS App (no codesign)
+        run: |
+          xcodebuild -project ClipDeck.xcodeproj \
+            -scheme ClipDeck \
+            -configuration Release \
+            -sdk iphoneos \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            DEBUG_INFORMATION_FORMAT=dwarf \
+            COMPILER_INDEX_STORE_ENABLE=NO \
+            build
+        shell: bash
+
+      - name: Package Unsigned IPA
+        run: |
+          mkdir -p Payload
+          APP_PATH=$(find build -name "*.app" -type d | head -n 1)
+          echo "Found app at: $APP_PATH"
+          cp -r "$APP_PATH" Payload/
+          zip -r "ClipDeck-${{ github.ref_name }}.ipa" Payload
+          rm -rf Payload
+
+      - name: Publish Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Перезапуск на уже существующем теге не должен падать:
+          # сначала сносим прошлый релиз с этим тегом, потом создаём заново.
+          gh release delete "${{ github.ref_name }}" --yes --cleanup-tag=false 2>/dev/null || true
+          gh release create "${{ github.ref_name }}" \
+            "ClipDeck-${{ github.ref_name }}.ipa" \
+            --title "ClipDeck ${{ github.ref_name }}" \
+            --notes "Unsigned IPA. Подпиши своим сертификатом: Scripts/resign.sh (Mac) или GBox / SideStore / AltStore на устройстве." \
+            --prerelease=false
+
+      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        with:
+          name: ClipDeck-${{ github.ref_name }}
+          path: ClipDeck-${{ github.ref_name }}.ipa
+          if-no-files-found: error
