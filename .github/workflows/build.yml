@@ -47,17 +47,16 @@ jobs:
 
       # После xcode-select на свежий Xcode нужна первичная инициализация:
       # без неё xcodebuild не видит simulator-destinations, хотя runtime
-      # скачан и simctl устройства перечисляет.
+      # скачан и simctl устройства перечисляет. Runtime на образе уже есть
+      # («iOS is already downloaded as universal»), отдельный downloadPlatform
+      # не нужен и падает с «Unable to connect to simulator».
       - name: Initialize Xcode
-        run: xcodebuild -runFirstLaunch
+        run: |
+          xcodebuild -runFirstLaunch
+          xcrun simctl list devices available
 
       - name: Generate Xcode Project
         run: xcodegen generate
-
-      # На части образов у свежего Xcode нет iOS simulator runtime.
-      # Команда идемпотентна: при наличии runtime завершается мгновенно.
-      - name: Ensure iOS simulator runtime
-        run: xcodebuild -downloadPlatform iOS
 
       - name: Run unit tests
         run: |
