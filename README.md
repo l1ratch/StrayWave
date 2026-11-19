@@ -32,7 +32,11 @@ xcodebuild -project ClipDeck.xcodeproj -scheme ClipDeck \
 
 GBox/AltStore-источник превью: `https://l1ratch.github.io/ClipDeck/source.json`.
 
-## Подпись (Ad-Hoc, explicit App ID `app.yam53.taro5888`)
+## Подпись (GBox на устройстве)
+
+Bundle ID — `com.l1ratch.ClipDeck`, он **не** привязан к `application-identifier` профиля: CI отдаёт неподписанный IPA, а GBox при переподписи сам подставляет нужный `application-identifier` из твоего Ad-Hoc профиля. В Swift-коде нет ни Team ID, ни application-identifier; App Group сейчас не используется (один таргет, без расширений) — константа `AppConfig.appGroupID` (`group.c2fefdd0db2e255e.5`) на будущее, если понадобится общий контейнер.
+
+Локальная переподпись тем же скриптом актуальна, если захочешь подписывать на Mac:
 
 Профиль привязан к UDID устройств, поэтому рекомендованная схема — **CI отдаёт неподписанный IPA, подпись выполняется локально**:
 

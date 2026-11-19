@@ -226,7 +226,7 @@ jobs:
             "apps": [
               {
                 "name": "ClipDeck",
-                "bundleIdentifier": "app.yam53.taro5888",
+                "bundleIdentifier": "com.l1ratch.ClipDeck",
                 "developerName": "l1ratch",
                 "version": "$VERSION",
                 "versionDate": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
