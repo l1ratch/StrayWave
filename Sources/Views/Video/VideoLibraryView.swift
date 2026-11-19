@@ -26,7 +26,7 @@ struct VideoLibraryView: View {
                     ContentUnavailableView {
                         Label("Видео пока нет", systemImage: "film")
                     } description: {
-                        Text("Скопируйте mp4/mov/m4v в папку ClipDeck в «Файлах» — они появятся здесь автоматически.")
+                        Text("Скопируйте mp4/mov/m4v в папку StrayWave в «Файлах» — они появятся здесь автоматически.")
                     }
                 } else {
                     ScrollView {

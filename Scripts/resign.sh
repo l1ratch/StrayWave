@@ -3,21 +3,21 @@
 # Запуск на macOS с установленным Xcode:
 #
 #   chmod +x Scripts/resign.sh
-#   ./Scripts/resign.sh ClipDeck-unsigned.ipa profile.mobileprovision cert.p12 'P12_PASSWORD'
+#   ./Scripts/resign.sh StrayWave-unsigned.ipa profile.mobileprovision cert.p12 'P12_PASSWORD'
 #
-# Результат: ClipDeck-signed.ipa рядом с исходником.
+# Результат: StrayWave-signed.ipa рядом с исходником.
 
 set -euo pipefail
 
-IPA="${1:?Укажите путь к ClipDeck-unsigned.ipa}"
+IPA="${1:?Укажите путь к StrayWave-unsigned.ipa}"
 PROFILE="${2:?Укажите .mobileprovision}"
 P12="${3:?Укажите сертификат .p12}"
 P12_PASSWORD="${4:?Укажите пароль .p12}"
 
 WORK=$(mktemp -d)
-KEYCHAIN="clipdeck-resign.$$"
+KEYCHAIN="straywave-resign.$$"
 KEYCHAIN_PASSWORD="$(openssl rand -hex 16)"
-APP="$WORK/Payload/ClipDeck.app"
+APP="$WORK/Payload/StrayWave.app"
 
 cleanup() {
     security delete-keychain "$KEYCHAIN" 2>/dev/null || true
@@ -46,7 +46,7 @@ cp "$PROFILE" "$APP/embedded.mobileprovision"
 security cms -D -i "$PROFILE" > "$WORK/profile.plist"
 /usr/libexec/PlistBuddy -x -c "Print :Entitlements" "$WORK/profile.plist" > "$WORK/entitlements.plist"
 if ! /usr/libexec/PlistBuddy -c "Print :Entitlements:com.apple.developer.kernel.increased-memory-limit" "$WORK/profile.plist" >/dev/null 2>&1; then
-    echo "⚠ В профиле нет increased-memory-limit — уберите этот ключ и из Resources/ClipDeck.entitlements"
+    echo "⚠ В профиле нет increased-memory-limit — уберите этот ключ и из Resources/StrayWave.entitlements"
 fi
 
 echo "→ codesign"
@@ -57,6 +57,6 @@ codesign --force --sign "$IDENTITY" \
 
 codesign --verify --verbose "$APP"
 
-echo "→ Упаковка ClipDeck-signed.ipa"
-(cd "$WORK" && zip -q -r -y "$OLDPWD/ClipDeck-signed.ipa" Payload)
-echo "Готово: ClipDeck-signed.ipa"
+echo "→ Упаковка StrayWave-signed.ipa"
+(cd "$WORK" && zip -q -r -y "$OLDPWD/StrayWave-signed.ipa" Payload)
+echo "Готово: StrayWave-signed.ipa"

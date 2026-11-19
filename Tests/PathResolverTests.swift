@@ -1,12 +1,12 @@
 import Testing
 import Foundation
-@testable import ClipDeck
+@testable import StrayWave
 
 @Suite("Относительные пути библиотеки")
 struct PathResolverTests {
     private func makeDocuments() throws -> URL {
         let url = FileManager.default.temporaryDirectory
-            .appendingPathComponent("ClipDeckTests-\(UUID().uuidString)", isDirectory: true)
+            .appendingPathComponent("StrayWaveTests-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
         return url
     }

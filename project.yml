@@ -1,4 +1,4 @@
-name: ClipDeck
+name: StrayWave
 
 # ── Версия: X.Y.N ─────────────────────────────────────────────────────────
 # X — глобальные изменения. Поднимается ВРУЧНУЮ и только по явной команде
@@ -10,9 +10,9 @@ name: ClipDeck
 #     сбрасывается при смене X/Y (CFBundleVersion обязан расти). Здесь лежит
 #     номер СЛЕДУЮЩЕЙ сборки.
 #
-# CD_VERSION = "X.Y" (строка), CD_BUILD = N (число).
-# Итог "<CD_VERSION>.<CD_BUILD>" идёт в CFBundleShortVersionString, в
-# манифест GBox и в названия превью/релизов. CFBundleVersion = CD_BUILD.
+# SW_VERSION = "X.Y" (строка), SW_BUILD = N (число).
+# Итог "<SW_VERSION>.<SW_BUILD>" идёт в CFBundleShortVersionString, в
+# манифест GBox и в названия превью/релизов. CFBundleVersion = SW_BUILD.
 #
 # Превью: пуш в main → build.yml бампит N, собирает и ОБНОВЛЯЕТ один и тот же
 #         prerelease «preview» + gh-pages. Теги v* НЕ создаются.
@@ -23,8 +23,8 @@ settings:
     SWIFT_VERSION: "6.0"
     SWIFT_STRICT_CONCURRENCY: complete
     DEVELOPMENT_TEAM: 9U945T6L7A
-    CD_VERSION: "1.0"
-    CD_BUILD: "9"
+    SW_VERSION: "1.0"
+    SW_BUILD: "9"
 
 options:
   # Пока самый свежий SDK на раннерах — iOS 26.x (Xcode 26.6): при target 27.0
@@ -35,7 +35,7 @@ options:
   createIntermediateGroups: true
 
 targets:
-  ClipDeck:
+  StrayWave:
     type: application
     platform: iOS
     sources:
@@ -43,10 +43,10 @@ targets:
       - path: Resources/Assets.xcassets
     settings:
       base:
-        PRODUCT_NAME: ClipDeck
-        PRODUCT_BUNDLE_IDENTIFIER: com.l1ratch.ClipDeck
+        PRODUCT_NAME: StrayWave
+        PRODUCT_BUNDLE_IDENTIFIER: com.l1ratch.StrayWave
         INFOPLIST_FILE: Resources/Info.plist
-        CODE_SIGN_ENTITLEMENTS: Resources/ClipDeck.entitlements
+        CODE_SIGN_ENTITLEMENTS: Resources/StrayWave.entitlements
         TARGETED_DEVICE_FAMILY: "1,2"
         GENERATE_INFOPLIST_FILE: NO
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
@@ -54,25 +54,25 @@ targets:
 
   # Юнит-тесты (Swift Testing). Это НЕ appex и в .ipa не попадает:
   # бандл существует только для локальной проверки и CI-теста.
-  ClipDeckTests:
+  StrayWaveTests:
     type: bundle.unit-test
     platform: iOS
     sources:
       - path: Tests
     dependencies:
-      - target: ClipDeck
+      - target: StrayWave
     settings:
       base:
         GENERATE_INFOPLIST_FILE: YES
-        PRODUCT_BUNDLE_IDENTIFIER: com.l1ratch.ClipDeck.tests
-        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/ClipDeck.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/ClipDeck"
+        PRODUCT_BUNDLE_IDENTIFIER: com.l1ratch.StrayWave.tests
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/StrayWave.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/StrayWave"
         BUNDLE_LOADER: "$(TEST_HOST)"
 
 schemes:
-  ClipDeck:
+  StrayWave:
     build:
       targets:
-        ClipDeck: all
+        StrayWave: all
     run:
       config: Debug
     archive:
@@ -80,4 +80,4 @@ schemes:
     test:
       config: Debug
       targets:
-        - ClipDeckTests
+        - StrayWaveTests

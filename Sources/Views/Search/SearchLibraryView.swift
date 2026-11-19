@@ -2,6 +2,11 @@ import SwiftUI
 import SwiftData
 
 /// Вкладка поиска (Tab role: .search) — по всей библиотеке.
+///
+/// Важно: `.searchable` всегда висит на одном и том же контейнере (List),
+/// пустые состояния — строки внутри списка. Если переключать само дерево
+/// (Group { if … }), система пересоздаёт поле поиска и не поднимает
+/// клавиатуру при открытии вкладки.
 struct SearchLibraryView: View {
     @Environment(MediaPlayerEngine.self) private var engine
     @Query private var items: [MediaItem]
@@ -21,23 +26,25 @@ struct SearchLibraryView: View {
 
     var body: some View {
         NavigationStack {
-            Group {
+            List {
                 if items.isEmpty {
                     ContentUnavailableView(
                         "Библиотека пуста",
-                        systemImage: "magnifyingglass",
+                        systemImage: "music.note",
                         description: Text("Импортируйте файлы на вкладках «Музыка» и «Видео».")
                     )
+                    .listRowSeparator(.hidden)
                 } else if results.isEmpty {
                     ContentUnavailableView.search(text: query)
+                        .listRowSeparator(.hidden)
                 } else {
-                    List(results) { item in
+                    ForEach(results) { item in
                         MediaRowView(item: item)
                             .onTapGesture { play(item) }
                     }
-                    .listStyle(.plain)
                 }
             }
+            .listStyle(.plain)
             .navigationTitle("Поиск")
             .searchable(text: $query, prompt: "Название, исполнитель, альбом")
         }

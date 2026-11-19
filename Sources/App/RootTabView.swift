@@ -19,6 +19,35 @@ struct RootTabView: View {
     var body: some View {
         @Bindable var importer = importer
 
+        // Аксессуару нужен реально играющий трек: с пустым содержимым система
+        // всё равно рисует стеклянную панель над таб-баром.
+        Group {
+            if engine.currentItem != nil {
+                tabView
+                    .tabViewBottomAccessory {
+                        MiniPlayerAccessoryView(namespace: playerNamespace) {
+                            showFullPlayer = true
+                        }
+                    }
+            } else {
+                tabView
+            }
+        }
+        .fullScreenCover(isPresented: $showFullPlayer) {
+            FullScreenAudioPlayerView()
+                .navigationTransition(.zoom(sourceID: Self.playerTransitionID, in: playerNamespace))
+        }
+        .alert(item: $importer.banner) { banner in
+            Alert(
+                title: Text(banner.title),
+                message: Text(banner.message),
+                dismissButton: .default(Text("OK")) { importer.banner = nil }
+            )
+        }
+    }
+
+    @ViewBuilder
+    private var tabView: some View {
         TabView(selection: $selection) {
             Tab("Музыка", systemImage: "music.note", value: AppTab.music) {
                 MusicLibraryView()
@@ -34,21 +63,5 @@ struct RootTabView: View {
             }
         }
         .tabBarMinimizeBehavior(.onScrollDown)
-        .tabViewBottomAccessory {
-            MiniPlayerAccessoryView(namespace: playerNamespace) {
-                showFullPlayer = true
-            }
-        }
-        .fullScreenCover(isPresented: $showFullPlayer) {
-            FullScreenAudioPlayerView()
-                .navigationTransition(.zoom(sourceID: Self.playerTransitionID, in: playerNamespace))
-        }
-        .alert(item: $importer.banner) { banner in
-            Alert(
-                title: Text(banner.title),
-                message: Text(banner.message),
-                dismissButton: .default(Text("OK")) { importer.banner = nil }
-            )
-        }
     }
 }

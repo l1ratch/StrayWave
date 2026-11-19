@@ -32,9 +32,9 @@ jobs:
         run: |
           # Стабильный релиз — ТОЛЬКО по тегу vX.Y.N, который вручную
           # создаёт разработчик. Тег обязан совпадать с project.yml:
-          # "<CD_VERSION>.<CD_BUILD>". CI превью теги НЕ создаёт.
-          BUILD=$(grep -m1 'CD_BUILD:' project.yml | sed -E 's/.*"([0-9]+)".*/\1/')
-          BLOCK=$(grep -m1 'CD_VERSION:' project.yml | sed -E 's/.*"([^"]+)".*/\1/')
+          # "<SW_VERSION>.<SW_BUILD>". CI превью теги НЕ создаёт.
+          BUILD=$(grep -m1 'SW_BUILD:' project.yml | sed -E 's/.*"([0-9]+)".*/\1/')
+          BLOCK=$(grep -m1 'SW_VERSION:' project.yml | sed -E 's/.*"([^"]+)".*/\1/')
           EXPECTED="v$BLOCK.$BUILD"
           TAG="${{ github.ref_name }}"
           if [ "$TAG" != "$EXPECTED" ]; then
@@ -50,8 +50,8 @@ jobs:
 
       - name: Build iOS App (no codesign)
         run: |
-          xcodebuild -project ClipDeck.xcodeproj \
-            -scheme ClipDeck \
+          xcodebuild -project StrayWave.xcodeproj \
+            -scheme StrayWave \
             -configuration Release \
             -sdk iphoneos \
             -derivedDataPath build \
@@ -69,7 +69,7 @@ jobs:
           APP_PATH=$(find build -name "*.app" -type d | head -n 1)
           echo "Found app at: $APP_PATH"
           cp -r "$APP_PATH" Payload/
-          zip -r "ClipDeck-${{ github.ref_name }}.ipa" Payload
+          zip -r "StrayWave-${{ github.ref_name }}.ipa" Payload
           rm -rf Payload
 
       - name: Publish Release
@@ -80,13 +80,13 @@ jobs:
           # сначала сносим прошлый релиз с этим тегом, потом создаём заново.
           gh release delete "${{ github.ref_name }}" --yes --cleanup-tag=false 2>/dev/null || true
           gh release create "${{ github.ref_name }}" \
-            "ClipDeck-${{ github.ref_name }}.ipa" \
-            --title "ClipDeck ${{ github.ref_name }}" \
+            "StrayWave-${{ github.ref_name }}.ipa" \
+            --title "StrayWave ${{ github.ref_name }}" \
             --notes "Unsigned IPA. Подпиши своим сертификатом: Scripts/resign.sh (Mac) или GBox / SideStore / AltStore на устройстве." \
             --prerelease=false
 
       - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
         with:
-          name: ClipDeck-${{ github.ref_name }}
-          path: ClipDeck-${{ github.ref_name }}.ipa
+          name: StrayWave-${{ github.ref_name }}
+          path: StrayWave-${{ github.ref_name }}.ipa
           if-no-files-found: error

@@ -27,7 +27,7 @@ struct MusicLibraryView: View {
                         Label(items.isEmpty ? "Музыки пока нет" : "Ничего не найдено", systemImage: "music.note")
                     } description: {
                         Text(items.isEmpty
-                             ? "Скопируйте файлы в папку ClipDeck в приложении «Файлы» (На iPhone) или импортируйте их через «+»."
+                             ? "Скопируйте файлы в папку StrayWave в приложении «Файлы» (На iPhone) или импортируйте их через «+»."
                              : "Снимите фильтр «Избранное» или измените сортировку.")
                     } actions: {
                         if items.isEmpty {

@@ -5,7 +5,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>ru</string>
 	<key>CFBundleDisplayName</key>
-	<string>ClipDeck</string>
+	<string>StrayWave</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -13,13 +13,13 @@
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>ClipDeck</string>
+	<string>StrayWave</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>$(CD_VERSION).$(CD_BUILD)</string>
+	<string>$(SW_VERSION).$(SW_BUILD)</string>
 	<key>CFBundleVersion</key>
-	<string>$(CD_BUILD)</string>
+	<string>$(SW_BUILD)</string>
 	<key>UILaunchScreen</key>
 	<dict/>
 	<key>UIFileSharingEnabled</key>

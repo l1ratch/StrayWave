@@ -1,6 +1,6 @@
 import Testing
 import Foundation
-@testable import ClipDeck
+@testable import StrayWave
 
 @Suite("Логика очереди")
 struct QueueLogicTests {

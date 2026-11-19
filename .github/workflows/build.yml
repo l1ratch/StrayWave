@@ -71,8 +71,8 @@ jobs:
           sys.exit(1)')
           echo "Simulator: $UDID"
           xcodebuild \
-            -project ClipDeck.xcodeproj \
-            -scheme ClipDeck \
+            -project StrayWave.xcodeproj \
+            -scheme StrayWave \
             -destination "platform=iOS Simulator,id=$UDID" \
             -derivedDataPath build-tests \
             CODE_SIGNING_ALLOWED=NO \
@@ -108,11 +108,11 @@ jobs:
         run: |
           # project.yml — единственный источник правды. N здесь — это
           # номер ТЕКУЩЕЙ сборки; после публикации CI запишет N+1.
-          BUILD=$(grep -m1 'CD_BUILD:' project.yml | sed -E 's/.*"([0-9]+)".*/\1/')
-          BLOCK=$(grep -m1 'CD_VERSION:' project.yml | sed -E 's/.*"([^"]+)".*/\1/')
+          BUILD=$(grep -m1 'SW_BUILD:' project.yml | sed -E 's/.*"([0-9]+)".*/\1/')
+          BLOCK=$(grep -m1 'SW_VERSION:' project.yml | sed -E 's/.*"([^"]+)".*/\1/')
           echo "build=$BUILD" >> "$GITHUB_OUTPUT"
           echo "version=$BLOCK.$BUILD" >> "$GITHUB_OUTPUT"
-          echo "ClipDeck preview build=$BLOCK.$BUILD"
+          echo "StrayWave preview build=$BLOCK.$BUILD"
         shell: bash
 
       - name: Generate Xcode Project
@@ -120,8 +120,8 @@ jobs:
 
       - name: Build iOS App (no codesign)
         run: |
-          xcodebuild -project ClipDeck.xcodeproj \
-            -scheme ClipDeck \
+          xcodebuild -project StrayWave.xcodeproj \
+            -scheme StrayWave \
             -configuration Release \
             -sdk iphoneos \
             -derivedDataPath build \
@@ -163,13 +163,13 @@ jobs:
           APP_PATH=$(find build -name "*.app" -type d | head -n 1)
           echo "Found app at: $APP_PATH"
           cp -r "$APP_PATH" Payload/
-          zip -r "ClipDeck.ipa" Payload
+          zip -r "StrayWave.ipa" Payload
           rm -rf Payload
 
       - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
         with:
-          name: ClipDeck-IPA
-          path: ClipDeck.ipa
+          name: StrayWave-IPA
+          path: StrayWave.ipa
           if-no-files-found: error
 
       # Готовим bump N ЛОКАЛЬНО (без пуша), пока HEAD ещё на main.
@@ -177,17 +177,17 @@ jobs:
         id: bump
         run: |
           set -e
-          CUR=$(grep -m1 'CD_BUILD:' project.yml | sed -E 's/.*"([0-9]+)".*/\1/')
+          CUR=$(grep -m1 'SW_BUILD:' project.yml | sed -E 's/.*"([0-9]+)".*/\1/')
           NEXT=$((CUR + 1))
           # -i.bak работает и в BSD sed (macOS), и в GNU sed.
-          sed -i.bak -E "s/(CD_BUILD: \")[0-9]+(\")/\1${NEXT}\2/" project.yml
+          sed -i.bak -E "s/(SW_BUILD: \")[0-9]+(\")/\1${NEXT}\2/" project.yml
           rm -f project.yml.bak
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add project.yml
           git commit -m "chore: next preview build ${NEXT} [skip ci]"
           echo "next=$NEXT" >> "$GITHUB_OUTPUT"
-          echo "Следующая превью-сборка: $(grep -m1 'CD_VERSION:' project.yml | sed -E 's/.*"([^"]+)".*/\1/').$NEXT"
+          echo "Следующая превью-сборка: $(grep -m1 'SW_VERSION:' project.yml | sed -E 's/.*"([^"]+)".*/\1/').$NEXT"
         shell: bash
 
       # Пушим bump СРАЗУ, пока HEAD ещё на main: следующий шаг уводит HEAD
@@ -204,7 +204,7 @@ jobs:
             git rebase origin/main
             git push origin HEAD:refs/heads/main
           fi
-          echo "project.yml: CD_BUILD=${{ steps.bump.outputs.next }}"
+          echo "project.yml: SW_BUILD=${{ steps.bump.outputs.next }}"
         shell: bash
 
       # GBox-источник: только манифест (AltStore-формат) в gh-pages.
@@ -216,23 +216,23 @@ jobs:
           set -e
           VER="${{ steps.ver.outputs.build }}"
           VERSION="${{ steps.ver.outputs.version }}"
-          SIZE=$(stat -f%z ClipDeck.ipa)
-          cp ClipDeck.ipa /tmp/preview.ipa
+          SIZE=$(stat -f%z StrayWave.ipa)
+          cp StrayWave.ipa /tmp/preview.ipa
           cat > /tmp/source.json <<EOF
           {
-            "name": "ClipDeck",
-            "identifier": "clipdeck.gh",
-            "sourceURL": "https://l1ratch.github.io/ClipDeck/source.json",
+            "name": "StrayWave",
+            "identifier": "straywave.gh",
+            "sourceURL": "https://l1ratch.github.io/StrayWave/source.json",
             "apps": [
               {
-                "name": "ClipDeck",
-                "bundleIdentifier": "com.l1ratch.ClipDeck",
+                "name": "StrayWave",
+                "bundleIdentifier": "com.l1ratch.StrayWave",
                 "developerName": "l1ratch",
                 "version": "$VERSION",
                 "versionDate": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
                 "versionDescription": "preview build $VER",
                 "size": $SIZE,
-                "downloadURL": "https://github.com/l1ratch/ClipDeck/releases/download/preview/preview.ipa",
+                "downloadURL": "https://github.com/l1ratch/StrayWave/releases/download/preview/preview.ipa",
                 "localizedDescription": "Оффлайн медиаплеер для iOS. Неподписанный IPA — GBox подпишет при установке вашим Ad-Hoc профилем."
               }
             ]

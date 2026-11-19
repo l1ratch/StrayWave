@@ -5,7 +5,7 @@ import Foundation
 /// В Swift-коде НЕ храним Team ID и application-identifier: неподписанный IPA
 /// переподписывается на устройстве через GBox, который сам подставляет
 /// application-identifier из .mobileprovision. Bundle ID приложения
-/// (com.l1ratch.ClipDeck) задаётся только в project.yml.
+/// (com.l1ratch.StrayWave) задаётся только в project.yml.
 enum AppConfig {
     /// App Group из доступного списка профиля (…1 … …5).
     /// Меняется только последняя цифра при необходимости.

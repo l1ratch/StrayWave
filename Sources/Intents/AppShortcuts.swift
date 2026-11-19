@@ -1,7 +1,7 @@
 import Foundation
 import AppIntents
 
-struct ClipDeckShortcuts: AppShortcutsProvider {
+struct StrayWaveShortcuts: AppShortcutsProvider {
     @AppShortcutsBuilder
     static var appShortcuts: [AppShortcut] {
         AppShortcut(

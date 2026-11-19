@@ -4,7 +4,7 @@ import SwiftData
 
 struct PlayMediaIntent: AppIntent {
     static let title: LocalizedStringResource = "Воспроизвести медиафайл"
-    static let description = IntentDescription("Запускает трек или видео из библиотеки ClipDeck.")
+    static let description = IntentDescription("Запускает трек или видео из библиотеки StrayWave.")
     static let openAppWhenRun = true
 
     @Parameter(title: "Медиафайл")
@@ -28,7 +28,7 @@ struct PlayMediaIntent: AppIntent {
 
 struct PlayPlaylistIntent: AppIntent {
     static let title: LocalizedStringResource = "Воспроизвести плейлист"
-    static let description = IntentDescription("Запускает плейлист ClipDeck. Удобно для автоматизации по Bluetooth.")
+    static let description = IntentDescription("Запускает плейлист StrayWave. Удобно для автоматизации по Bluetooth.")
     static let openAppWhenRun = true
 
     @Parameter(title: "Плейлист")
@@ -71,7 +71,7 @@ enum PlaybackIntentError: Error, LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .itemNotFound: return "Файл не найден в библиотеке ClipDeck."
+        case .itemNotFound: return "Файл не найден в библиотеке StrayWave."
         }
     }
 }
