@@ -24,7 +24,7 @@ settings:
     SWIFT_STRICT_CONCURRENCY: complete
     DEVELOPMENT_TEAM: 9U945T6L7A
     CD_VERSION: "1.0"
-    CD_BUILD: "7"
+    CD_BUILD: "8"
 
 options:
   # Пока самый свежий SDK на раннерах — iOS 26.x (Xcode 26.6): при target 27.0
