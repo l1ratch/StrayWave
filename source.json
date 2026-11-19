@@ -1,17 +1,17 @@
 {
-  "name": "ClipDeck",
-  "identifier": "clipdeck.gh",
-  "sourceURL": "https://l1ratch.github.io/ClipDeck/source.json",
+  "name": "StrayWave",
+  "identifier": "straywave.gh",
+  "sourceURL": "https://l1ratch.github.io/StrayWave/source.json",
   "apps": [
     {
-      "name": "ClipDeck",
-      "bundleIdentifier": "com.l1ratch.ClipDeck",
+      "name": "StrayWave",
+      "bundleIdentifier": "com.l1ratch.StrayWave",
       "developerName": "l1ratch",
-      "version": "1.0.8",
-      "versionDate": "2026-11-19T23:02:23Z",
-      "versionDescription": "preview build 8",
-      "size": 497556,
-      "downloadURL": "https://github.com/l1ratch/ClipDeck/releases/download/preview/preview.ipa",
+      "version": "1.0.9",
+      "versionDate": "2026-11-19T23:20:33Z",
+      "versionDescription": "preview build 9",
+      "size": 499320,
+      "downloadURL": "https://github.com/l1ratch/StrayWave/releases/download/preview/preview.ipa",
       "localizedDescription": "Оффлайн медиаплеер для iOS. Неподписанный IPA — GBox подпишет при установке вашим Ad-Hoc профилем."
     }
   ]
