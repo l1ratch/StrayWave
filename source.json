@@ -7,10 +7,10 @@
       "name": "ClipDeck",
       "bundleIdentifier": "app.yam53.taro5888",
       "developerName": "l1ratch",
-      "version": "1.0.5",
-      "versionDate": "2026-11-19T22:10:46Z",
-      "versionDescription": "preview build 5",
-      "size": 496007,
+      "version": "1.0.6",
+      "versionDate": "2026-11-19T22:26:11Z",
+      "versionDescription": "preview build 6",
+      "size": 497573,
       "downloadURL": "https://l1ratch.github.io/ClipDeck/clipdeck.ipa",
       "localizedDescription": "Оффлайн медиаплеер для iOS. Неподписанный IPA — GBox подпишет при установке вашим Ad-Hoc профилем."
     }
