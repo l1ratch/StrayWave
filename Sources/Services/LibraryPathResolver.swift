@@ -47,6 +47,11 @@ struct FileFingerprint: Equatable, Sendable {
     let size: Int64
     let modificationDate: Date
 
+    init(size: Int64, modificationDate: Date) {
+        self.size = size
+        self.modificationDate = modificationDate
+    }
+
     init?(url: URL) {
         guard let attributes = try? FileManager.default.attributesOfItem(atPath: url.path),
               let size = attributes[.size] as? NSNumber,
