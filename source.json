@@ -5,12 +5,12 @@
   "apps": [
     {
       "name": "ClipDeck",
-      "bundleIdentifier": "app.yam53.taro5888",
+      "bundleIdentifier": "com.l1ratch.ClipDeck",
       "developerName": "l1ratch",
-      "version": "1.0.7",
-      "versionDate": "2026-11-19T22:42:45Z",
-      "versionDescription": "preview build 7",
-      "size": 497574,
+      "version": "1.0.8",
+      "versionDate": "2026-11-19T23:02:23Z",
+      "versionDescription": "preview build 8",
+      "size": 497556,
       "downloadURL": "https://github.com/l1ratch/ClipDeck/releases/download/preview/preview.ipa",
       "localizedDescription": "Оффлайн медиаплеер для iOS. Неподписанный IPA — GBox подпишет при установке вашим Ad-Hoc профилем."
     }
