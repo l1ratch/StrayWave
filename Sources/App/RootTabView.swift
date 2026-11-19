@@ -1,7 +1,7 @@
 import SwiftUI
 
 enum AppTab: Hashable {
-    case music, video, playlists, search
+    case music, video, search, more
 }
 
 /// Корневая навигация: нативный TabView (Liquid Glass) + мини-плеер в accessory.
@@ -55,11 +55,11 @@ struct RootTabView: View {
             Tab("Видео", systemImage: "film", value: AppTab.video) {
                 VideoLibraryView()
             }
-            Tab("Плейлисты", systemImage: "music.note.list", value: AppTab.playlists) {
-                PlaylistsView()
-            }
             Tab("Поиск", systemImage: "magnifyingglass", value: AppTab.search, role: .search) {
                 SearchLibraryView()
+            }
+            Tab("Ещё", systemImage: "ellipsis.circle", value: AppTab.more) {
+                MoreView()
             }
         }
         .tabBarMinimizeBehavior(.onScrollDown)

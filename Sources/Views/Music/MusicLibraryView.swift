@@ -7,12 +7,11 @@ struct MusicLibraryView: View {
 
     @Query(filter: #Predicate<MediaItem> { $0.kindRaw == "audio" })
     private var items: [MediaItem]
-    @Query private var playlists: [Playlist]
 
     @State private var sortOrder: MediaSortOrder = .dateAdded
     @State private var favoritesOnly = false
     @State private var showImporter = false
-    @State private var importMode: ImportMode = .copy
+    @State private var showCreatePlaylist = false
 
     private var visibleItems: [MediaItem] {
         let filtered = favoritesOnly ? items.filter(\.isFavorite) : items
@@ -22,49 +21,54 @@ struct MusicLibraryView: View {
     var body: some View {
         NavigationStack {
             Group {
-                if visibleItems.isEmpty {
+                if items.isEmpty && !favoritesOnly {
                     ContentUnavailableView {
-                        Label(items.isEmpty ? "Музыки пока нет" : "Ничего не найдено", systemImage: "music.note")
+                        Label("Музыки пока нет", systemImage: "music.note")
                     } description: {
-                        Text(items.isEmpty
-                             ? "Скопируйте файлы в папку StrayWave в приложении «Файлы» (На iPhone) или импортируйте их через «+»."
-                             : "Снимите фильтр «Избранное» или измените сортировку.")
-                    } actions: {
-                        if items.isEmpty {
-                            Button("Импортировать файлы") {
-                                importMode = .copy
-                                showImporter = true
-                            }
-                            .buttonStyle(.borderedProminent)
-                        }
+                        Text("Скопируйте файлы в папку StrayWave в приложении «Файлы» или добавьте их кнопкой «+» — треки появятся автоматически.")
                     }
                 } else {
                     List {
-                        ForEach(visibleItems) { item in
-                            MediaRowView(item: item)
-                                .onTapGesture { play(item) }
-                                .swipeActions(edge: .leading) {
-                                    Button { engine.playNext(item) } label: {
-                                        Label("Следующим", systemImage: "text.line.first.and.arrowtriangle.forward")
-                                    }
-                                    .tint(.indigo)
+                        MusicPlaylistsSection()
+                        if visibleItems.isEmpty {
+                            ContentUnavailableView(
+                                "Ничего не найдено",
+                                systemImage: "magnifyingglass",
+                                description: Text("Снимите фильтр «Избранное».")
+                            )
+                            .listRowSeparator(.hidden)
+                        } else {
+                            Section("Треки") {
+                                ForEach(visibleItems) { item in
+                                    MediaRowView(item: item)
+                                        .onTapGesture { play(item) }
+                                        .swipeActions(edge: .leading) {
+                                            Button { engine.playNext(item) } label: {
+                                                Label("Следующим", systemImage: "text.line.first.and.arrowtriangle.forward")
+                                            }
+                                            .tint(.indigo)
+                                        }
+                                        .swipeActions(edge: .trailing) {
+                                            Button(role: .destructive) { app.deleteMediaItem(item) } label: {
+                                                Label("Удалить", systemImage: "trash")
+                                            }
+                                            Button { item.isFavorite.toggle() } label: {
+                                                Label("Избранное", systemImage: item.isFavorite ? "heart.slash" : "heart")
+                                            }
+                                            .tint(.pink)
+                                        }
+                                        .contextMenu { contextMenu(for: item) }
                                 }
-                                .swipeActions(edge: .trailing) {
-                                    Button(role: .destructive) { app.deleteMediaItem(item) } label: {
-                                        Label("Удалить", systemImage: "trash")
-                                    }
-                                    Button { item.isFavorite.toggle() } label: {
-                                        Label("Избранное", systemImage: item.isFavorite ? "heart.slash" : "heart")
-                                    }
-                                    .tint(.pink)
-                                }
-                                .contextMenu { contextMenu(for: item) }
+                            }
                         }
                     }
                     .listStyle(.plain)
                 }
             }
             .navigationTitle("Музыка")
+            .navigationDestination(for: UUID.self) { id in
+                PlaylistDetailResolver(id: id)
+            }
             .toolbar { toolbarContent }
             .fileImporter(
                 isPresented: $showImporter,
@@ -73,10 +77,13 @@ struct MusicLibraryView: View {
             ) { result in
                 switch result {
                 case .success(let urls):
-                    Task { await app.importer.importURLs(urls, mode: importMode) }
+                    Task { await app.importer.importFromFiles(urls: urls) }
                 case .failure(let error):
                     app.importer.banner = ImportBanner(title: "Ошибка импорта", message: error.localizedDescription)
                 }
+            }
+            .sheet(isPresented: $showCreatePlaylist) {
+                PlaylistCreateSheet(kind: .audio)
             }
         }
     }
@@ -106,16 +113,14 @@ struct MusicLibraryView: View {
         ToolbarItem(placement: .topBarTrailing) {
             Menu {
                 Button {
-                    importMode = .copy
                     showImporter = true
                 } label: {
-                    Label(ImportMode.copy.title, systemImage: ImportMode.copy.systemImage)
+                    Label("Добавить из «Файлов»…", systemImage: "folder")
                 }
                 Button {
-                    importMode = .bookmark
-                    showImporter = true
+                    showCreatePlaylist = true
                 } label: {
-                    Label(ImportMode.bookmark.title, systemImage: ImportMode.bookmark.systemImage)
+                    Label("Новый плейлист", systemImage: "music.note.list")
                 }
             } label: {
                 Image(systemName: "plus")
@@ -134,16 +139,6 @@ struct MusicLibraryView: View {
         Button { item.isFavorite.toggle() } label: {
             Label(item.isFavorite ? "Убрать из избранного" : "В избранное", systemImage: item.isFavorite ? "heart.slash" : "heart")
         }
-        if !playlists.isEmpty {
-            Menu("В плейлист") {
-                ForEach(playlists) { playlist in
-                    Button(playlist.name) {
-                        if !playlist.itemIDs.contains(item.id) {
-                            playlist.itemIDs.append(item.id)
-                        }
-                    }
-                }
-            }
-        }
+        AddToPlaylistMenu(item: item)
     }
 }

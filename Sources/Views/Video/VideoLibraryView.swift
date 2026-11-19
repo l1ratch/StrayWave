@@ -11,6 +11,8 @@ struct VideoLibraryView: View {
     @State private var sortOrder: MediaSortOrder = .dateAdded
     @State private var favoritesOnly = false
     @State private var showPlayer = false
+    @State private var showImporter = false
+    @State private var showCreatePlaylist = false
 
     private var visibleItems: [MediaItem] {
         let filtered = favoritesOnly ? items.filter(\.isFavorite) : items
@@ -22,34 +24,43 @@ struct VideoLibraryView: View {
     var body: some View {
         NavigationStack {
             Group {
-                if visibleItems.isEmpty {
+                if items.isEmpty && !favoritesOnly {
                     ContentUnavailableView {
                         Label("Видео пока нет", systemImage: "film")
                     } description: {
-                        Text("Скопируйте mp4/mov/m4v в папку StrayWave в «Файлах» — они появятся здесь автоматически.")
+                        Text("Скопируйте mp4/mov/m4v в папку StrayWave в «Файлах» или добавьте кнопкой «+» — они появятся здесь автоматически.")
                     }
                 } else {
                     ScrollView {
-                        LazyVGrid(columns: columns, spacing: 16) {
-                            ForEach(visibleItems) { item in
-                                VideoCell(item: item)
-                                    .onTapGesture { play(item) }
-                                    .contextMenu {
-                                        Button { item.isFavorite.toggle() } label: {
-                                            Label("Избранное", systemImage: item.isFavorite ? "heart.slash" : "heart")
-                                        }
-                                        Button(role: .destructive) { app.deleteMediaItem(item) } label: {
-                                            Label("Удалить", systemImage: "trash")
-                                        }
+                        LazyVStack(spacing: 20) {
+                            VideoPlaylistsStrip()
+                            if visibleItems.isEmpty {
+                                ContentUnavailableView(
+                                    "Ничего не найдено",
+                                    systemImage: "magnifyingglass",
+                                    description: Text("Снимите фильтр «Избранное».")
+                                )
+                                .padding(.top, 60)
+                            } else {
+                                LazyVGrid(columns: columns, spacing: 16) {
+                                    ForEach(visibleItems) { item in
+                                        VideoCell(item: item)
+                                            .onTapGesture { play(item) }
+                                            .contextMenu { videoContextMenu(for: item) }
                                     }
+                                }
+                                .padding(.horizontal)
                             }
                         }
-                        .padding(.horizontal)
                         .padding(.bottom, 24)
+                        .padding(.top, 4)
                     }
                 }
             }
             .navigationTitle("Видео")
+            .navigationDestination(for: UUID.self) { id in
+                PlaylistDetailResolver(id: id)
+            }
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
@@ -65,6 +76,37 @@ struct VideoLibraryView: View {
                         Image(systemName: "arrow.up.arrow.down")
                     }
                 }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Menu {
+                        Button {
+                            showImporter = true
+                        } label: {
+                            Label("Добавить из «Файлов»…", systemImage: "folder")
+                        }
+                        Button {
+                            showCreatePlaylist = true
+                        } label: {
+                            Label("Новый плейлист", systemImage: "music.note.list")
+                        }
+                    } label: {
+                        Image(systemName: "plus")
+                    }
+                }
+            }
+            .fileImporter(
+                isPresented: $showImporter,
+                allowedContentTypes: SupportedFormats.importContentTypes,
+                allowsMultipleSelection: true
+            ) { result in
+                switch result {
+                case .success(let urls):
+                    Task { await app.importer.importFromFiles(urls: urls) }
+                case .failure(let error):
+                    app.importer.banner = ImportBanner(title: "Ошибка импорта", message: error.localizedDescription)
+                }
+            }
+            .sheet(isPresented: $showCreatePlaylist) {
+                PlaylistCreateSheet(kind: .video)
             }
             .fullScreenCover(isPresented: $showPlayer) {
                 NativeVideoPlayerScreen()
@@ -77,6 +119,17 @@ struct VideoLibraryView: View {
         let index = list.firstIndex(where: { $0.id == item.id }) ?? 0
         engine.playItems(list, startAt: index)
         showPlayer = true
+    }
+
+    @ViewBuilder
+    private func videoContextMenu(for item: MediaItem) -> some View {
+        Button { item.isFavorite.toggle() } label: {
+            Label("Избранное", systemImage: item.isFavorite ? "heart.slash" : "heart")
+        }
+        AddToPlaylistMenu(item: item)
+        Button(role: .destructive) { app.deleteMediaItem(item) } label: {
+            Label("Удалить", systemImage: "trash")
+        }
     }
 }
 
