@@ -45,12 +45,17 @@ jobs:
           sudo xcode-select -s "$XC/Contents/Developer"
           xcodebuild -version
 
+      # После xcode-select на свежий Xcode нужна первичная инициализация:
+      # без неё xcodebuild не видит simulator-destinations, хотя runtime
+      # скачан и simctl устройства перечисляет.
+      - name: Initialize Xcode
+        run: xcodebuild -runFirstLaunch
+
       - name: Generate Xcode Project
         run: xcodegen generate
 
-      # На части образов у свежего Xcode нет iOS simulator runtime
-      # (есть только visionOS). Команда идемпотентна: при наличии runtime
-      # завершается мгновенно.
+      # На части образов у свежего Xcode нет iOS simulator runtime.
+      # Команда идемпотентна: при наличии runtime завершается мгновенно.
       - name: Ensure iOS simulator runtime
         run: xcodebuild -downloadPlatform iOS
 
