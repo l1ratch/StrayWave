@@ -11,8 +11,10 @@ import UniformTypeIdentifiers
 struct DocumentPicker: UIViewControllerRepresentable {
     var contentTypes: [UTType] = SupportedFormats.importContentTypes
     var allowsMultipleSelection: Bool = true
-    var onPick: ([URL]) -> Void
+    /// onCancel идёт ПЕРЕД onPick: trailing-closure привязывается к onPick
+    /// ([URL]) -> Void, а не к onCancel без аргументов.
     var onCancel: () -> Void = {}
+    var onPick: ([URL]) -> Void
 
     func makeUIViewController(context: Context) -> UIDocumentPickerViewController {
         let picker = UIDocumentPickerViewController(forOpeningContentTypes: contentTypes, asCopy: false)

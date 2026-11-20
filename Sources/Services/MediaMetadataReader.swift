@@ -237,16 +237,16 @@ actor MediaMetadataReader {
         var rows: [MediaDetailRow] = []
         let items = (try? await asset.load(.metadata)) ?? []
         for entry in items {
-            guard let loaded = try? await entry.load([.keyIdentifier, .keySpace, .commonKey, .stringValue, .numberValue, .dateValue, .dataValue]) else { continue }
-            let label = tagLabel(loaded)
+            // Читаем свойства напрямую — без batch-load и протокола-провайдера.
+            let label = tagLabel(entry)
             guard !label.isEmpty else { continue }
-            if let string = loaded.stringValue?.trimmingCharacters(in: .whitespacesAndNewlines), !string.isEmpty {
+            if let string = entry.stringValue?.trimmingCharacters(in: .whitespacesAndNewlines), !string.isEmpty {
                 rows.append(.init(label: label, value: string))
-            } else if let number = loaded.numberValue {
+            } else if let number = entry.numberValue {
                 rows.append(.init(label: label, value: label == "Обложка" ? "есть" : "\(number)"))
-            } else if let date = loaded.dateValue {
+            } else if let date = entry.dateValue {
                 rows.append(.init(label: label, value: Self.dateFormatter.string(from: date)))
-            } else if loaded.dataValue != nil, label == "Обложка" {
+            } else if entry.dataValue != nil, label == "Обложка" {
                 rows.append(.init(label: label, value: "есть"))
             }
         }
@@ -262,7 +262,7 @@ actor MediaMetadataReader {
         "TRCK": "Номер трека", "TPOS": "Номер диска", "TPE1": "Исполнитель", "COMM": "Комментарий"
     ]
 
-    private func tagLabel(_ item: any AVMetadataItemValueProviding) -> String {
+    private func tagLabel(_ item: AVMetadataItem) -> String {
         if let common = item.commonKey {
             return Self.tagLabels[common.rawValue] ?? common.rawValue
         }
