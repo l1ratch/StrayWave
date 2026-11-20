@@ -7,10 +7,10 @@
       "name": "StrayWave",
       "bundleIdentifier": "com.l1ratch.StrayWave",
       "developerName": "l1ratch",
-      "version": "1.0.14",
-      "versionDate": "2026-11-20T07:11:21Z",
-      "versionDescription": "preview build 14",
-      "size": 4278529,
+      "version": "1.0.15",
+      "versionDate": "2026-11-20T07:41:04Z",
+      "versionDescription": "preview build 15",
+      "size": 4291553,
       "downloadURL": "https://github.com/l1ratch/StrayWave/releases/download/preview/preview.ipa",
       "localizedDescription": "Оффлайн медиаплеер для iOS. Неподписанный IPA — GBox подпишет при установке вашим Ad-Hoc профилем."
     }
