@@ -105,12 +105,15 @@ actor LibraryScannerService {
                 continue
             }
             var isStale = false
-            guard let url = try? URL(resolvingBookmarkData: data, options: [], relativeTo: nil, bookmarkDataIsStale: &isStale),
-                  url.startAccessingSecurityScopedResource() else {
+            guard let url = try? URL(resolvingBookmarkData: data, options: [], relativeTo: nil, bookmarkDataIsStale: &isStale) else {
                 outcome.lostBookmarkIDs.insert(record.id)
                 continue
             }
-            defer { url.stopAccessingSecurityScopedResource() }
+            // startAccessingSecurityScopedResource на iOS может вернуть false
+            // даже при доступном файле (например, локальные «На iPhone»).
+            // Это НЕ признак потерянной ссылки — проверяем существование файла.
+            let scoped = url.startAccessingSecurityScopedResource()
+            defer { if scoped { url.stopAccessingSecurityScopedResource() } }
             guard FileManager.default.fileExists(atPath: url.path) else {
                 outcome.lostBookmarkIDs.insert(record.id)
                 continue
