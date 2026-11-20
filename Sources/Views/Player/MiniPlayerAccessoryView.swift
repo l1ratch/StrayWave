@@ -4,14 +4,14 @@ import SwiftUI
 struct MiniPlayerAccessoryView: View {
     @Environment(MediaPlayerEngine.self) private var engine
 
-    let namespace: Namespace.ID
     let onExpand: () -> Void
 
     var body: some View {
         if let item = engine.currentItem {
             HStack(spacing: 12) {
+                // Без matchedTransitionSource: zoom-переход стабильно ронял
+                // Release-сборку в момент старта воспроизведения.
                 ArtworkImage(item: item, size: 40, cornerRadius: 8)
-                    .matchedTransitionSource(id: RootTabView.playerTransitionID, in: namespace)
 
                 VStack(alignment: .leading, spacing: 1) {
                     Text(item.title)
@@ -34,7 +34,6 @@ struct MiniPlayerAccessoryView: View {
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .sensoryFeedback(.impact(weight: .light), trigger: engine.isPlaying)
 
                 Button {
                     engine.next()

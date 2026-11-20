@@ -13,9 +13,6 @@ struct RootTabView: View {
     @State private var selection: AppTab = .music
     @State private var lastNonSearchTab: AppTab = .music
     @State private var showFullPlayer = false
-    @Namespace private var playerNamespace
-
-    static let playerTransitionID = "fullscreen-audio-player"
 
     var body: some View {
         @Bindable var importer = importer
@@ -26,7 +23,7 @@ struct RootTabView: View {
             if engine.currentItem != nil {
                 tabView
                     .tabViewBottomAccessory {
-                        MiniPlayerAccessoryView(namespace: playerNamespace) {
+                        MiniPlayerAccessoryView {
                             showFullPlayer = true
                         }
                     }
@@ -46,13 +43,15 @@ struct RootTabView: View {
             guard selection == .search, app.searchQuery.isEmpty else { return }
             selection = lastNonSearchTab
         }
-        // Лист на весь экран: в отличие от fullScreenCover здесь есть свайп
-        // вниз для закрытия, а zoom-переход от обложки работает так же.
+        // Лист на весь экран со свайпом вниз для закрытия. Zoom-переход
+        // (.navigationTransition(.zoom) + matchedTransitionSource в мини-
+        // плеере) УДАЛЁН: он выполняется ровно в момент старта
+        // воспроизведения и стабильно ронял Release-сборку на устройстве
+        // (SIGTRAP сразу после старта трека с обложкой).
         .sheet(isPresented: $showFullPlayer) {
             FullScreenAudioPlayerView()
                 .presentationDetents([.large])
                 .presentationDragIndicator(.hidden)
-                .navigationTransition(.zoom(sourceID: Self.playerTransitionID, in: playerNamespace))
         }
         // Собственный оверлей-баннер вместо .alert: системный алерт в
         // иерархии TabView мог не показываться, поэтому этапы импорта были

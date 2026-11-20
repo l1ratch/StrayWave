@@ -154,7 +154,6 @@ struct FullScreenAudioPlayerView: View {
                 Image(systemName: engine.isPlaying ? "pause.circle.fill" : "play.circle.fill")
                     .font(.system(size: 72))
             }
-            .sensoryFeedback(.impact(weight: .medium), trigger: engine.isPlaying)
             Button { engine.next() } label: {
                 Image(systemName: "forward.fill").font(.largeTitle)
             }
