@@ -272,7 +272,7 @@ final class MediaPlayerEngine {
         case .securityBookmark:
             guard let data = item.bookmarkData else { return nil }
             var isStale = false
-            guard let url = try? URL(resolvingBookmarkData: data, options: [], relativeTo: nil, bookmarkDataIsStale: &isStale) else { return nil }
+            guard let url = try? URL(resolvingBookmarkData: data, options: .withSecurityScope, relativeTo: nil, bookmarkDataIsStale: &isStale) else { return nil }
             if url.startAccessingSecurityScopedResource() {
                 activeSecurityScopes[item.id] = url
             }

@@ -8,12 +8,17 @@ import UIKit
 /// иерархии окна и вызываем becomeFirstResponder — стандартный приём.
 enum SearchFieldActivator {
     @MainActor
-    static func activate(after delay: Duration = .milliseconds(320)) {
+    static func activate(after delay: Duration = .milliseconds(120)) {
+        // Быстрый вызов + один retry: поле поиска может появиться с задержкой.
         Task { @MainActor in
-            try? await Task.sleep(for: delay)
-            guard let window = activeWindow(),
-                  let field = window.searchFieldCandidate() else { return }
-            field.becomeFirstResponder()
+            for wait in [delay, .milliseconds(500)] {
+                try? await Task.sleep(for: wait)
+                if let window = activeWindow(),
+                   let field = window.searchFieldCandidate() {
+                    field.becomeFirstResponder()
+                    return
+                }
+            }
         }
     }
 

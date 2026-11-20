@@ -128,9 +128,8 @@ struct FullScreenAudioPlayerView: View {
                     }
                 }
             )
-            // Хаптик только на фиксацию позиции — иначе отдача трещит на
-            // каждый пиксель перетаскивания.
-            .sensoryFeedback(.impact(weight: .light), trigger: scrubberCommit)
+            // Без sensoryFeedback на скраббере: даже редкие триггеры по
+            // изменению состояния ощущаются как дребезг при перетаскивании.
 
             HStack {
                 Text(TimeFormatting.string(scrubberValue ?? engine.displayedPosition))
@@ -142,8 +141,7 @@ struct FullScreenAudioPlayerView: View {
         }
     }
 
-    /// Отдельный сигнал «скраббинг завершён» для тактильной отдачи.
-    private var scrubberCommit: Bool { scrubberValue == nil && engine.displayedPosition > 0 }
+    // (Убран вычисляемый триггер scrubberCommit — хаптик скраббера отключён.)
 
     // MARK: - Транспорт
 

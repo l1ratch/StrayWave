@@ -86,10 +86,16 @@ final class FileImportService {
                 title: "Неподдерживаемый формат",
                 message: "AVFoundation не умеет эти контейнеры. Поддерживаются: mp3, m4a, aac, flac, alac, wav, aiff, mp4, mov, m4v."
             )
-        } else if skippedCopied > 0 {
+        } else if skippedCopied > 0 && linkedFiles == 0 {
             banner = ImportBanner(
                 title: "Уже в библиотеке",
                 message: "Файлы из папки StrayWave в «Файлах» добавляются автоматически — отдельно их импортировать не нужно."
+            )
+        } else if linkedFiles > 0 {
+            // Позитивная обратная связь: видно, что импорт действительно случился.
+            banner = ImportBanner(
+                title: "Добавлено в библиотеку",
+                message: "Ссылок на файлы: \(linkedFiles). Копирование не требовалось — треки читаются с исходного места."
             )
         }
         if linkedFiles > 0 { await AppEnvironment.shared.rescanLibrary() }
@@ -111,13 +117,28 @@ final class FileImportService {
         return result
     }
 
-    /// Возвращает false, если файл уже лежит в Documents (копия в библиотеке).
+    /// Возвращает false, если файл уже есть в библиотеке (копия или bookmark).
     private func saveBookmark(_ url: URL) throws -> Bool {
         guard LibraryPathResolver.relativePath(for: url) == nil else { return false }
         guard existingCopy(of: url) == nil else { return false }
-        let data = try url.bookmarkData(options: [], includingResourceValuesForKeys: nil, relativeTo: nil)
+        // Обязательно .withSecurityScope: «голый» bookmark на iOS потом не
+        // резолвится, сканер считает файл потерянным и молча удаляет запись.
+        let data = try url.bookmarkData(options: .withSecurityScope, includingResourceValuesForKeys: nil, relativeTo: nil)
         guard let container = AppEnvironment.shared.modelContainer else { return true }
         let context = ModelContext(container)
+
+        // Не плодим bookmark-дубли: та же целевая ссылка = уже есть в базе.
+        let existing = (try? context.fetch(FetchDescriptor<MediaItem>())) ?? []
+        let targetPath = url.standardizedFileURL.path
+        for record in existing where record.storageType == .securityBookmark {
+            guard let recordData = record.bookmarkData else { continue }
+            var stale = false
+            if let resolved = try? URL(resolvingBookmarkData: recordData, options: .withSecurityScope, relativeTo: nil, bookmarkDataIsStale: &stale),
+               resolved.standardizedFileURL.path == targetPath {
+                return false
+            }
+        }
+
         let item = MediaItem(
             kind: SupportedFormats.kind(for: url) ?? .audio,
             storageType: .securityBookmark,
