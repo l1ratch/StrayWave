@@ -70,40 +70,44 @@ final class NowPlayingBridge {
 
     // MARK: - Remote commands
     private func configureCommands() {
-        // MPRemoteCommandCenter вызывает обработчики на главном потоке.
+        // MPRemoteCommandCenter вызывает обработчики на ПРОИЗВОЛЬНОЙ очереди,
+        // не на главном. MainActor.assumeIsolated здесь ронял Release-сборку
+        // (MainActor.assertIsolated failed) — как только система впервые
+        // отправляла команду (локскрин, наушники, nowPlayingInfo). Поэтому
+        // честный хоп на MainActor через Task.
         center.playCommand.addTarget { [weak self] _ in
-            MainActor.assumeIsolated { self?.engine?.play() }
+            Task { @MainActor in self?.engine?.play() }
             return .success
         }
         center.pauseCommand.addTarget { [weak self] _ in
-            MainActor.assumeIsolated { self?.engine?.pause() }
+            Task { @MainActor in self?.engine?.pause() }
             return .success
         }
         center.togglePlayPauseCommand.addTarget { [weak self] _ in
-            MainActor.assumeIsolated { self?.engine?.togglePlayPause() }
+            Task { @MainActor in self?.engine?.togglePlayPause() }
             return .success
         }
         center.nextTrackCommand.addTarget { [weak self] _ in
-            MainActor.assumeIsolated { self?.engine?.next() }
+            Task { @MainActor in self?.engine?.next() }
             return .success
         }
         center.previousTrackCommand.addTarget { [weak self] _ in
-            MainActor.assumeIsolated { self?.engine?.previous() }
+            Task { @MainActor in self?.engine?.previous() }
             return .success
         }
         center.changePlaybackPositionCommand.addTarget { [weak self] event in
             guard let positionEvent = event as? MPChangePlaybackPositionCommandEvent else { return .commandFailed }
-            MainActor.assumeIsolated { self?.engine?.seek(to: positionEvent.positionTime) }
+            Task { @MainActor in self?.engine?.seek(to: positionEvent.positionTime) }
             return .success
         }
         center.skipForwardCommand.preferredIntervals = [15]
         center.skipBackwardCommand.preferredIntervals = [15]
         center.skipForwardCommand.addTarget { [weak self] _ in
-            MainActor.assumeIsolated { self?.engine?.skip(by: 15) }
+            Task { @MainActor in self?.engine?.skip(by: 15) }
             return .success
         }
         center.skipBackwardCommand.addTarget { [weak self] _ in
-            MainActor.assumeIsolated { self?.engine?.skip(by: -15) }
+            Task { @MainActor in self?.engine?.skip(by: -15) }
             return .success
         }
     }

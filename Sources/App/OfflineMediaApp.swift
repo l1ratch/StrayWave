@@ -13,6 +13,7 @@ struct OfflineMediaApp: App {
         || ProcessInfo.processInfo.environment["XCTestSessionIdentifier"] != nil
 
     init() {
+        if !Self.isRunningTests { CrashReporter.install() }
         do {
             if Self.isRunningTests {
                 container = try ModelContainer(
