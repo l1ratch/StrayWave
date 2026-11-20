@@ -48,7 +48,9 @@ struct SearchLibraryView: View {
                 }
             }
             .listStyle(.plain)
-            .navigationTitle("Поиск")
+            // Без титула: на вкладке поиска шапкой является сама строка поиска,
+            // заголовок «Поиск» рисовался отдельной строкой ниже кнопок.
+            .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
             .searchable(text: $app.searchQuery, prompt: "Название, исполнитель, альбом")
         }

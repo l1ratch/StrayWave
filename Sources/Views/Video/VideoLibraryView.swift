@@ -57,12 +57,16 @@ struct VideoLibraryView: View {
                     }
                 }
             }
-            .navigationTitle("Видео")
+            // Титул через .principal — в строке кнопок (см. MusicLibraryView).
+            .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
             .navigationDestination(for: UUID.self) { id in
                 PlaylistDetailResolver(id: id)
             }
             .toolbar {
+                ToolbarItem(placement: .principal) {
+                    Text("Видео").font(.headline)
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
                         Picker("Сортировка", selection: $sortOrder) {

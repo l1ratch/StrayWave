@@ -77,13 +77,26 @@ struct MoreView: View {
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }
+
+                Section("Диагностика") {
+                    NavigationLink {
+                        DebugLogView()
+                    } label: {
+                        Label("Журнал импорта и плеера", systemImage: "doc.text.magnifyingglass")
+                    }
+                    .font(.body)
+                }
             }
-            .navigationTitle("Ещё")
+            // Титул через .principal — в строке кнопок (см. MusicLibraryView).
+            .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
             .navigationDestination(for: UUID.self) { id in
                 PlaylistDetailResolver(id: id)
             }
             .toolbar {
+                ToolbarItem(placement: .principal) {
+                    Text("Ещё").font(.headline)
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
                         Button {

@@ -35,10 +35,17 @@ final class NowPlayingBridge {
         // (≤600 px JPEG) и нормализуется в opaque RGB. Асинхронный путь через
         // actor + Task давал краш при воспроизведении треков с встроенной
         // обложкой (экзотические цветовые профили ID3).
-        if let fileName = item.artworkFileName, let artwork = sanitizedArtwork(fileName: fileName) {
-            info[MPMediaItemPropertyArtwork] = artwork
+        if let fileName = item.artworkFileName {
+            DebugLog.shared.add("🖼 nowPlaying: обложка \(fileName)")
+            if let artwork = sanitizedArtwork(fileName: fileName) {
+                info[MPMediaItemPropertyArtwork] = artwork
+                DebugLog.shared.add("🖼 nowPlaying: artwork готов")
+            } else {
+                DebugLog.shared.add("🖼 nowPlaying: artwork НЕ собран (nil)")
+            }
         }
         infoCenter.nowPlayingInfo = info
+        DebugLog.shared.add("🖼 nowPlaying: nowPlayingInfo применён")
     }
 
     /// Обложка для локскрина: синхронная загрузка кэша + перерисовка в RGB.

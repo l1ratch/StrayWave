@@ -22,6 +22,7 @@ enum FilePickerPresenter {
         onCancel: @escaping () -> Void = {}
     ) {
         guard let host = topViewController() else {
+            DebugLog.shared.add("❌ пикер: не найден host VC")
             onCancel()
             return
         }
@@ -34,16 +35,19 @@ enum FilePickerPresenter {
         let delegate = PickerDelegate(
             onPick: { urls in
                 retainedDelegates[identifier] = nil
+                DebugLog.shared.add("✅ пикер: делегат, файлов \(urls.count): \(urls.map(\.lastPathComponent).joined(separator: ", "))")
                 onPick(urls)
             },
             onCancel: {
                 retainedDelegates[identifier] = nil
+                DebugLog.shared.add("↩️ пикер: отмена")
                 onCancel()
             }
         )
         retainedDelegates[identifier] = delegate
         picker.delegate = delegate
         host.present(picker, animated: true)
+        DebugLog.shared.add("▶️ пикер: презентован (types: \(contentTypes.count), host: \(type(of: host)))")
     }
 
     private static func topViewController() -> UIViewController? {

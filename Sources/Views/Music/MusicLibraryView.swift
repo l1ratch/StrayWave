@@ -65,12 +65,19 @@ struct MusicLibraryView: View {
                     .listStyle(.plain)
                 }
             }
-            .navigationTitle("Музыка")
+            // Титул через .principal — гарантированно в строке кнопок.
+            // navigationTitle на этом стеке рендерился отдельной строкой ниже.
+            .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
             .navigationDestination(for: UUID.self) { id in
                 PlaylistDetailResolver(id: id)
             }
             .toolbar { toolbarContent }
+            .toolbar {
+                ToolbarItem(placement: .principal) {
+                    Text("Музыка").font(.headline)
+                }
+            }
             .sheet(isPresented: $showCreatePlaylist) {
                 PlaylistCreateSheet(kind: .audio)
             }

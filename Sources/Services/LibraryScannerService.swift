@@ -101,11 +101,13 @@ actor LibraryScannerService {
 
         for record in known where record.storageRaw == MediaStorageType.securityBookmark.rawValue {
             guard let data = record.bookmarkData else {
+                DebugLog.shared.add("🗂 скан: bookmark без данных — помечен потерянным: \(record.title)")
                 outcome.lostBookmarkIDs.insert(record.id)
                 continue
             }
             var isStale = false
             guard let url = try? URL(resolvingBookmarkData: data, options: [], relativeTo: nil, bookmarkDataIsStale: &isStale) else {
+                DebugLog.shared.add("🗂 скан: bookmark не резолвится — потерян: \(record.title)")
                 outcome.lostBookmarkIDs.insert(record.id)
                 continue
             }
@@ -115,6 +117,7 @@ actor LibraryScannerService {
             let scoped = url.startAccessingSecurityScopedResource()
             defer { if scoped { url.stopAccessingSecurityScopedResource() } }
             guard FileManager.default.fileExists(atPath: url.path) else {
+                DebugLog.shared.add("🗂 скан: файла нет по пути bookmark — потерян: \(record.title) → \(url.path)")
                 outcome.lostBookmarkIDs.insert(record.id)
                 continue
             }
@@ -279,11 +282,14 @@ enum LibrarySync {
                 }
             case .securityBookmark:
                 if outcome.lostBookmarkIDs.contains(item.id) {
+                    DebugLog.shared.add("🗑 удалена bookmark-запись: \(item.title)")
                     deletedIDs.append(item.id)
                     context.delete(item)
                 }
             }
         }
+
+        DebugLog.shared.add("🗂 LibrarySync: добавлено \(outcome.items.count), удалено \(deletedIDs.count), потерянных bookmark \(outcome.lostBookmarkIDs.count)")
 
         try? context.save()
         return deletedIDs

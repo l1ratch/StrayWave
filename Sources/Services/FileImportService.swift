@@ -57,6 +57,7 @@ final class FileImportService {
         // не сработал сам пикер, если появился, а файлов нет — проблема в
         // сохранении/сканере. По тексту пользователь видит, где обрыв.
         banner = ImportBanner(title: "Импорт из «Файлов»", message: "Выбрано: \(urls.count). Сохраняю ссылки…")
+        DebugLog.shared.add("📥 importFromFiles: \(urls.count) URL")
 
         var linkedFiles = 0
         var skippedCopied = 0
@@ -75,18 +76,25 @@ final class FileImportService {
                     }
                 } else if SupportedFormats.isUnsupportedMedia(url) {
                     failed += 1
+                    DebugLog.shared.add("⚠️ пропуск (неподдерживаемый): \(url.lastPathComponent)")
                 } else if SupportedFormats.kind(for: url) == nil {
+                    DebugLog.shared.add("⚠️ пропуск (kind == nil): \(url.lastPathComponent)")
                     continue
                 } else if try saveBookmark(url) {
                     linkedFiles += 1
+                    DebugLog.shared.add("✅ bookmark сохранён: \(url.lastPathComponent)")
                 } else {
                     skippedCopied += 1
+                    DebugLog.shared.add("↩️ пропуск (уже есть): \(url.lastPathComponent)")
                 }
             } catch {
                 failed += 1
                 if firstError == nil { firstError = error.localizedDescription }
+                DebugLog.shared.add("❌ ошибка по \(url.lastPathComponent): \(error.localizedDescription)")
             }
         }
+
+        DebugLog.shared.add("📊 итог: добавлено \(linkedFiles), пропущено \(skippedCopied), ошибок \(failed)")
 
         if failed > 0 {
             banner = ImportBanner(

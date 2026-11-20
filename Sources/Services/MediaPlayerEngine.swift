@@ -247,18 +247,24 @@ final class MediaPlayerEngine {
             displayedPosition = 0
             return
         }
+        DebugLog.shared.add("▶️ плеер: старт «\(item.title)» (artwork: \(item.artworkFileName ?? "нет"))")
         item.playCount += 1
         if !resume { item.playbackPosition = 0 }
         isVideoMode = item.kind == .video
         displayedPosition = resume ? item.resumePosition : 0
         configureAudioSession()
+        DebugLog.shared.add("▶️ плеер: before nowPlaying.update()")
         nowPlaying?.update()
+        DebugLog.shared.add("▶️ плеер: after nowPlaying.update()")
         try? saveContext?.save()
     }
 
     private func makePlayerItem(for item: MediaItem) -> AVPlayerItem? {
         if let cached = itemCache[item.id] { return cached }
-        guard let url = resolvedURL(for: item) else { return nil }
+        guard let url = resolvedURL(for: item) else {
+            DebugLog.shared.add("❌ плеер: URL не резолвится: \(item.title)")
+            return nil
+        }
         let avItem = AVPlayerItem(url: url)
         itemCache[item.id] = avItem
         return avItem
