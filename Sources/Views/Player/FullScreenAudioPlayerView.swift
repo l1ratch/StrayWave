@@ -114,27 +114,57 @@ struct FullScreenAudioPlayerView: View {
 
     @ViewBuilder
     private func scrubber(item: MediaItem) -> some View {
-        VStack(spacing: 4) {
-            Slider(
-                value: Binding(
-                    get: { scrubberValue ?? engine.displayedPosition },
-                    set: { scrubberValue = $0 }
-                ),
-                in: 0 ... max(item.duration, 1),
-                onEditingChanged: { editing in
-                    if !editing, let value = scrubberValue {
-                        engine.seek(to: value)
-                        scrubberValue = nil
-                    }
+        let duration = max(item.duration, 1)
+        let position = min(max(scrubberValue ?? engine.displayedPosition, 0), duration)
+
+        VStack(spacing: 6) {
+            // СВОЙ скраббер вместо системного Slider: на iOS 26 системный
+            // слайдер в этом контексте рисовался сломанной линией, выходящей
+            // за края. Здесь геометрия явная: трек и бегунок физически не
+            // могут выйти за пределы контейнера.
+            GeometryReader { geo in
+                let width = geo.size.width
+                let fraction = CGFloat(position / duration)
+                let thumbDiameter: CGFloat = 18
+                let trackHeight: CGFloat = 6
+                ZStack(alignment: .leading) {
+                    Capsule()
+                        .fill(.white.opacity(0.25))
+                        .frame(height: trackHeight)
+                    Capsule()
+                        .fill(.white.opacity(0.85))
+                        .frame(
+                            width: max(fraction * width, trackHeight),
+                            height: trackHeight
+                        )
+                    Circle()
+                        .fill(.white)
+                        .frame(width: thumbDiameter, height: thumbDiameter)
+                        .shadow(color: .black.opacity(0.35), radius: 4, y: 2)
+                        .offset(x: min(max(fraction * width - thumbDiameter / 2, 0), width - thumbDiameter))
                 }
-            )
-            // Без sensoryFeedback на скраббере: даже редкие триггеры по
-            // изменению состояния ощущаются как дребезг при перетаскивании.
+                .frame(maxHeight: .infinity)
+                .contentShape(Rectangle())
+                .gesture(
+                    DragGesture(minimumDistance: 0)
+                        .onChanged { value in
+                            let f = min(max(value.location.x / max(width, 1), 0), 1)
+                            scrubberValue = f * duration
+                        }
+                        .onEnded { value in
+                            let f = min(max(value.location.x / max(width, 1), 0), 1)
+                            let target = f * duration
+                            scrubberValue = nil
+                            engine.seek(to: target)
+                        }
+                )
+            }
+            .frame(height: 26)
 
             HStack {
-                Text(TimeFormatting.string(scrubberValue ?? engine.displayedPosition))
+                Text(TimeFormatting.string(position))
                 Spacer()
-                Text(TimeFormatting.remaining(item.duration, scrubberValue ?? engine.displayedPosition))
+                Text(TimeFormatting.remaining(item.duration, position))
             }
             .font(.caption.monospacedDigit())
             .foregroundStyle(.secondary)
