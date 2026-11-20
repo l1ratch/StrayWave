@@ -69,10 +69,11 @@ actor MediaMetadataReader {
         sections.append(contentsOf: await tagsSection(asset: asset))
         sections.removeAll { $0.rows.isEmpty }
 
+        let hasEmbeddedArtwork = await hasEmbeddedArtwork(asset: asset)
         return MediaFileDetail(
             title: request.title,
             subtitle: request.subtitle,
-            hasArtwork: request.artworkFileName != nil || await hasEmbeddedArtwork(asset: asset),
+            hasArtwork: request.artworkFileName != nil || hasEmbeddedArtwork,
             sections: sections
         )
     }
@@ -162,7 +163,7 @@ actor MediaMetadataReader {
 
     private func audioFormatRows(_ desc: CMFormatDescription, prefix: String) -> [MediaDetailRow] {
         var rows: [MediaDetailRow] = [.init(label: prefix + "Кодек", value: codecName(CMFormatDescriptionGetMediaSubType(desc)))]
-        guard CMFormatDescriptionGetTypeID(desc) == CMAudioFormatDescriptionGetTypeID() else { return rows }
+        guard CMFormatDescriptionGetMediaType(desc) == kCMMediaType_Audio else { return rows }
         let audioDesc: CMAudioFormatDescription = unsafeBitCast(desc, to: CMAudioFormatDescription.self)
         guard let pointer = CMAudioFormatDescriptionGetStreamBasicDescription(audioDesc) else { return rows }
         let asbd = pointer.pointee
@@ -186,10 +187,6 @@ actor MediaMetadataReader {
         let tracks = ((try? await asset.load(.tracks)) ?? []).filter { $0.mediaType == .video }
         guard !tracks.isEmpty else { return [] }
         var rows: [MediaDetailRow] = []
-        let characteristics = (try? await asset.load(.availableMediaCharacteristics)) ?? []
-        if characteristics.contains(.containsHDRVideo) {
-            rows.append(.init(label: "HDR", value: "есть"))
-        }
         for (index, track) in tracks.enumerated() {
             let prefix = tracks.count > 1 ? "Дорожка \(index + 1): " : ""
             if let size = try? await track.load(.naturalSize), size.width > 0, size.height > 0 {
@@ -207,13 +204,13 @@ actor MediaMetadataReader {
             }
             for desc in (try? await track.load(.formatDescriptions)) ?? [] {
                 rows.append(.init(label: prefix + "Кодек", value: codecName(CMFormatDescriptionGetMediaSubType(desc))))
-                if CMFormatDescriptionGetTypeID(desc) == CMVideoFormatDescriptionGetTypeID() {
+                if CMFormatDescriptionGetMediaType(desc) == kCMMediaType_Video {
                     let videoDesc: CMVideoFormatDescription = unsafeBitCast(desc, to: CMVideoFormatDescription.self)
                     let encoded = CMVideoFormatDescriptionGetDimensions(videoDesc)
                     if encoded.width > 0, encoded.height > 0 {
                         rows.append(.init(label: prefix + "Кодированное разрешение", value: "\(encoded.width)×\(encoded.height)"))
                     }
-                    let clean = CMVideoFormatDescriptionGetCleanAperture(videoDesc, false)
+                    let clean = CMVideoFormatDescriptionGetCleanAperture(videoDesc, originIsAtTopLeft: false)
                     if clean.width > 1, clean.height > 1 {
                         rows.append(.init(label: prefix + "Clean aperture", value: "\(Int(clean.width))×\(Int(clean.height))"))
                     }
@@ -266,9 +263,13 @@ actor MediaMetadataReader {
         if let common = item.commonKey {
             return Self.tagLabels[common.rawValue] ?? common.rawValue
         }
-        guard let key = item.keyIdentifier else { return "" }
-        if item.keySpace == .common { return Self.tagLabels[key] ?? key }
-        if item.keySpace == .iTunesMetadata {
+        // keyIdentifier нет в современном SDK — берём identifier.rawValue,
+        // а пространства сравниваем по строковым rawValue.
+        guard let key = item.identifier?.rawValue else { return "" }
+        switch item.keySpace?.rawValue {
+        case "common":
+            return Self.tagLabels[key] ?? key
+        case "itsk": // iTunes metadata
             switch key {
             case "sonm": return "Композитор"
             case "desc": return "Описание"
@@ -276,10 +277,13 @@ actor MediaMetadataReader {
             case "grp c": return "Группировка"
             default: return ""
             }
+        case "org.id3": // ID3v2
+            return Self.id3Labels[key] ?? ""
+        case "mdta": // QuickTime metadata
+            return Self.tagLabels[key] ?? key
+        default:
+            return ""
         }
-        if item.keySpace == .ID3Metadata { return Self.id3Labels[key] ?? "" }
-        if item.keySpace == .quickTimeMetadata { return Self.tagLabels[key] ?? key }
-        return ""
     }
 
     private func hasEmbeddedArtwork(asset: AVAsset) async -> Bool {
@@ -302,8 +306,9 @@ actor MediaMetadataReader {
                   FileManager.default.fileExists(atPath: url.path) else { return nil }
             return ResolvedMedia(url: url, startedScope: false)
         case .securityBookmark:
+            var isStale = false
             guard let data = request.bookmarkData,
-                  let url = try? URL(resolvingBookmarkData: data, options: [], relativeTo: nil, bookmarkDataIsStale: nil),
+                  let url = try? URL(resolvingBookmarkData: data, options: [], relativeTo: nil, bookmarkDataIsStale: &isStale),
                   FileManager.default.fileExists(atPath: url.path) else { return nil }
             return ResolvedMedia(url: url, startedScope: url.startAccessingSecurityScopedResource())
         }
