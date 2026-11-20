@@ -10,7 +10,7 @@ import Observation
 /// Класс nonisolated + NSLock: в журнал пишут и главный поток (пикер,
 /// NowPlaying), и actor-сканер — изоляция MainActor не подходит.
 @Observable
-final class DebugLog {
+final class DebugLog: @unchecked Sendable {
     static let shared = DebugLog()
 
     private static let fileURL: URL = {
@@ -18,7 +18,9 @@ final class DebugLog {
         return documents.appendingPathComponent("StrayWave-debug.log")
     }()
 
-    private static let stamp: DateFormatter = {
+    // DateFormatter не Sendable и не потокобезопасен — доступ строго под lock,
+    // поэтому nonisolated(unsafe) здесь корректен.
+    private nonisolated(unsafe) static let stamp: DateFormatter = {
         let f = DateFormatter()
         f.dateFormat = "HH:mm:ss"
         return f
