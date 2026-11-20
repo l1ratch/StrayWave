@@ -1,8 +1,8 @@
 import Foundation
 
-/// Записывает краш прямо в файл журнала диагностики
-/// (Documents/StrayWave-debug.log): имя исключения или номер сигнала плюс
-/// стек. Устанавливается один раз на старте приложения.
+/// Записывает краш в файл журнала диагностики
+/// (Application Support/StrayWave-debug.log): имя исключения или номер
+/// сигнала плюс стек. Устанавливается один раз на старте приложения.
 ///
 /// Best-effort: в signal-handler нельзя полноценно использовать Foundation,
 /// поэтому запись минимальна — но её достаточно, чтобы увидеть тип падения
@@ -26,8 +26,10 @@ enum CrashReporter {
     /// Запись в обход DebugLog: обработчики вызываются в аварийном контексте,
     /// UIKit/SwiftUI трогать нельзя, только файл и fputs.
     private static func rawAppend(_ text: String) {
-        let documents = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-        let url = documents.appendingPathComponent("StrayWave-debug.log")
+        // Тот же файл, что у DebugLog (Application Support, не Documents —
+        // Documents наблюдается вотчером сканера).
+        let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        let url = support.appendingPathComponent("StrayWave-debug.log")
         let stamped = "\n=== CRASH ===\n\(text)\n"
         if let handle = try? FileHandle(forWritingTo: url) {
             handle.seekToEndOfFile()

@@ -257,6 +257,7 @@ final class MediaPlayerEngine {
         nowPlaying?.update()
         DebugLog.shared.add("▶️ плеер: after nowPlaying.update()")
         try? saveContext?.save()
+        DebugLog.shared.add("▶️ плеер: старт завершён (save ok)")
     }
 
     private func makePlayerItem(for item: MediaItem) -> AVPlayerItem? {

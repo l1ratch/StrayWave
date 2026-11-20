@@ -1,25 +1,25 @@
 import Foundation
-import Observation
 
 /// Журнал диагностики, видимый в «Ещё → Диагностика».
 ///
-/// Записи ПЕРСИСТЯТСЯ в файл Documents/StrayWave-debug.log: журнал должен
-/// переживать краш (главный сценарий — воспроизвести падение, открыть
-/// диагностику и отправить лог). Хвост файла ~256 КБ.
+/// ВАЖНО: файл живёт в Application Support, НЕ в Documents — Documents
+/// наблюдается DispatchSource- вотчером сканера, и записи журнала туда
+/// вызывали бесконечный перескан (запись лога → вотчер → скан → запись
+/// лога о скане → …), что и давало постоянные «🗂 LibrarySync» в простое.
 ///
-/// Класс nonisolated + NSLock: в журнал пишут и главный поток (пикер,
-/// NowPlaying), и actor-сканер — изоляция MainActor не подходит.
-@Observable
+/// Класс nonisolated + NSLock: пишут и главный поток, и actor-сканер.
+/// @Observable НЕ используется: registrar наблюдателя не потокобезопасен,
+/// конкурентный доступ к нему из двух потоков ронял приложение (SIGTRAP).
 final class DebugLog: @unchecked Sendable {
     static let shared = DebugLog()
 
     private static let fileURL: URL = {
-        let documents = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-        return documents.appendingPathComponent("StrayWave-debug.log")
+        let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        try? FileManager.default.createDirectory(at: support, withIntermediateDirectories: true)
+        return support.appendingPathComponent("StrayWave-debug.log")
     }()
 
-    // DateFormatter не Sendable и не потокобезопасен — доступ строго под lock,
-    // поэтому nonisolated(unsafe) здесь корректен.
+    // Доступ строго под lock.
     private nonisolated(unsafe) static let stamp: DateFormatter = {
         let f = DateFormatter()
         f.dateFormat = "HH:mm:ss"
@@ -27,7 +27,7 @@ final class DebugLog: @unchecked Sendable {
     }()
 
     private static let maxFileBytes = 256 * 1024
-    private static let maxEntries = 300
+    private static let maxEntries = 400
 
     private let lock = NSLock()
     private var storage: [String] = []

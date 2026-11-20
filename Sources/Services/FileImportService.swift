@@ -163,16 +163,23 @@ final class FileImportService {
         return nil
     }
 
-    /// «Трек (1).mp3» → «Трек.mp3»: при пересылке iOS дописывает счётчики,
-    /// из-за чего один и тот же файл превращался в дубли библиотеки.
+    /// «Трек (1).mp3» / «Трек2.mp3» → «Трек.mp3»: при пересылке iOS дописывает
+    /// « (N)», а наш uniqueDestination — «N» без скобок. Без срезания обоих
+    /// вариантов один и тот же файл превращался в дубли библиотеки.
     private static func normalize(name: String) -> String {
         let base = (name as NSString).deletingPathExtension
         let ext = (name as NSString).pathExtension
         var trimmed = base
-        while let range = trimmed.range(of: #"\s*[((]\s*(?:[1-9]|[1-2][0-9]|3[0-2])\s*[))]\s*$"#, options: .regularExpression) {
+        // « (1)» / «(12)» в конце имени.
+        while let range = trimmed.range(of: #"\s*[((]\s*\d{1,3}\s*[))]\s*$"#, options: .regularExpression) {
             trimmed.removeSubrange(range)
         }
-        return ext.isEmpty ? trimmed : "\(trimmed).\(ext)"
+        // «2» / «23» в конце имени — суффикс uniqueDestination.
+        while let range = trimmed.range(of: #"\s*\d{1,3}$"#, options: .regularExpression) {
+            trimmed.removeSubrange(range)
+        }
+        let cleaned = trimmed.trimmingCharacters(in: .whitespaces)
+        return ext.isEmpty ? cleaned : "\(cleaned).\(ext)"
     }
 
     private func copyIntoDocuments(_ url: URL) throws -> URL {
