@@ -54,12 +54,22 @@ struct RootTabView: View {
                 .presentationDragIndicator(.hidden)
                 .navigationTransition(.zoom(sourceID: Self.playerTransitionID, in: playerNamespace))
         }
-        .alert(item: $importer.banner) { banner in
-            Alert(
-                title: Text(banner.title),
-                message: Text(banner.message),
-                dismissButton: .default(Text("OK")) { importer.banner = nil }
-            )
+        // Собственный оверлей-баннер вместо .alert: системный алерт в
+        // иерархии TabView мог не показываться, поэтому этапы импорта были
+        // невидимы. Оверлей отображается всегда, поверх контента.
+        .overlay(alignment: .top) {
+            if let banner = importer.banner {
+                ImportBannerOverlay(banner: banner) {
+                    withAnimation { importer.banner = nil }
+                }
+                .padding(.top, 10)
+                .transition(.move(edge: .top).combined(with: .opacity))
+                .zIndex(100)
+                .task(id: banner.id) {
+                    try? await Task.sleep(for: .seconds(9))
+                    withAnimation { importer.banner = nil }
+                }
+            }
         }
     }
 

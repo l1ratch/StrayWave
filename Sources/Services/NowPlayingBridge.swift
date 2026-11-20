@@ -38,9 +38,18 @@ final class NowPlayingBridge {
             artworkTask = Task { [weak self] in
                 guard let cgImage = await ArtworkCacheService.shared.loadImage(fileName: fileName),
                       !Task.isCancelled else { return }
-                let image = UIImage(cgImage: cgImage)
-                // нулевой boundsSize — почти гарантированный краш в nowPlayingInfo
-                guard image.size.width > 0, image.size.height > 0 else { return }
+                // Перерисовываем в opaque RGB: встроенные ID3-обложки бывают с
+                // экзотическими цветовыми профилями (CMYK/16-bit), из-за чего
+                // UIImage(cgImage:) в nowPlayingInfo приводил к крашу.
+                let format = UIGraphicsImageRendererFormat.default()
+                format.opaque = true
+                format.scale = 1
+                let targetSize = CGSize(width: cgImage.width, height: cgImage.height)
+                guard targetSize.width > 0, targetSize.height > 0 else { return }
+                let renderer = UIGraphicsImageRenderer(size: targetSize, format: format)
+                let image = renderer.image { _ in
+                    UIImage(cgImage: cgImage).draw(in: CGRect(origin: .zero, size: targetSize))
+                }
                 let artwork = MPMediaItemArtwork(boundsSize: image.size) { _ in image }
                 await MainActor.run {
                     guard self?.engine?.currentItem?.id == id else { return }

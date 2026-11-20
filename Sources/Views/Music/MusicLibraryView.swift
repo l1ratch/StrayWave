@@ -72,9 +72,9 @@ struct MusicLibraryView: View {
                 PlaylistDetailResolver(id: id)
             }
             .toolbar { toolbarContent }
-            // Системный пикер напрямую: у .fileImporter на iOS 26 с несколькими
-            // allowedContentTypes кнопка «Открыть» иногда не завершает выбор.
-            .sheet(isPresented: $showImporter) {
+            // Системный пикер напрямую в fullScreenCover: .fileImporter на iOS 26
+            // терял комплиту, .sheet для documentPicker тоже нестабилен.
+            .fullScreenCover(isPresented: $showImporter) {
                 DocumentPicker { urls in
                     Task { await app.importer.importFromFiles(urls: urls) }
                 }

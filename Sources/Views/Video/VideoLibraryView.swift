@@ -95,7 +95,7 @@ struct VideoLibraryView: View {
                     }
                 }
             }
-            .sheet(isPresented: $showImporter) {
+            .fullScreenCover(isPresented: $showImporter) {
                 DocumentPicker { urls in
                     Task { await app.importer.importFromFiles(urls: urls) }
                 }
