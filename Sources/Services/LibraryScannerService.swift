@@ -105,7 +105,7 @@ actor LibraryScannerService {
                 continue
             }
             var isStale = false
-            guard let url = try? URL(resolvingBookmarkData: data, options: .withSecurityScope, relativeTo: nil, bookmarkDataIsStale: &isStale),
+            guard let url = try? URL(resolvingBookmarkData: data, options: [], relativeTo: nil, bookmarkDataIsStale: &isStale),
                   url.startAccessingSecurityScopedResource() else {
                 outcome.lostBookmarkIDs.insert(record.id)
                 continue

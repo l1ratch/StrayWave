@@ -308,7 +308,7 @@ actor MediaMetadataReader {
         case .securityBookmark:
             var isStale = false
             guard let data = request.bookmarkData,
-                  let url = try? URL(resolvingBookmarkData: data, options: .withSecurityScope, relativeTo: nil, bookmarkDataIsStale: &isStale),
+                  let url = try? URL(resolvingBookmarkData: data, options: [], relativeTo: nil, bookmarkDataIsStale: &isStale),
                   FileManager.default.fileExists(atPath: url.path) else { return nil }
             return ResolvedMedia(url: url, startedScope: url.startAccessingSecurityScopedResource())
         }

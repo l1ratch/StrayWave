@@ -53,9 +53,15 @@ final class FileImportService {
     // MARK: - Импорт из «Файлов» → ссылка без копирования
 
     func importFromFiles(urls: [URL]) async {
+        // Видимая диагностика цепочки: если этот баннер не появился вообще —
+        // не сработал сам пикер, если появился, а файлов нет — проблема в
+        // сохранении/сканере. По тексту пользователь видит, где обрыв.
+        banner = ImportBanner(title: "Импорт из «Файлов»", message: "Выбрано: \(urls.count). Сохраняю ссылки…")
+
         var linkedFiles = 0
         var skippedCopied = 0
         var failed = 0
+        var firstError: String?
 
         for url in urls {
             let scoped = url.startAccessingSecurityScopedResource()
@@ -78,13 +84,14 @@ final class FileImportService {
                 }
             } catch {
                 failed += 1
+                if firstError == nil { firstError = error.localizedDescription }
             }
         }
 
         if failed > 0 {
             banner = ImportBanner(
-                title: "Неподдерживаемый формат",
-                message: "AVFoundation не умеет эти контейнеры. Поддерживаются: mp3, m4a, aac, flac, alac, wav, aiff, mp4, mov, m4v."
+                title: "Ошибка импорта",
+                message: firstError ?? "AVFoundation не умеет эти контейнеры. Поддерживаются: mp3, m4a, aac, flac, alac, wav, aiff, mp4, mov, m4v."
             )
         } else if skippedCopied > 0 && linkedFiles == 0 {
             banner = ImportBanner(
@@ -121,9 +128,9 @@ final class FileImportService {
     private func saveBookmark(_ url: URL) throws -> Bool {
         guard LibraryPathResolver.relativePath(for: url) == nil else { return false }
         guard existingCopy(of: url) == nil else { return false }
-        // Обязательно .withSecurityScope: «голый» bookmark на iOS потом не
-        // резолвится, сканер считает файл потерянным и молча удаляет запись.
-        let data = try url.bookmarkData(options: .withSecurityScope, includingResourceValuesForKeys: nil, relativeTo: nil)
+        // На iOS bookmark всегда security-scoped; опция .withSecurityScope —
+        // macOS-only, на iOS недоступна. Поэтому options: [].
+        let data = try url.bookmarkData(options: [], includingResourceValuesForKeys: nil, relativeTo: nil)
         guard let container = AppEnvironment.shared.modelContainer else { return true }
         let context = ModelContext(container)
 
