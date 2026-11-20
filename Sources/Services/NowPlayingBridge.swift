@@ -39,6 +39,8 @@ final class NowPlayingBridge {
                 guard let cgImage = await ArtworkCacheService.shared.loadImage(fileName: fileName),
                       !Task.isCancelled else { return }
                 let image = UIImage(cgImage: cgImage)
+                // нулевой boundsSize — почти гарантированный краш в nowPlayingInfo
+                guard image.size.width > 0, image.size.height > 0 else { return }
                 let artwork = MPMediaItemArtwork(boundsSize: image.size) { _ in image }
                 await MainActor.run {
                     guard self?.engine?.currentItem?.id == id else { return }

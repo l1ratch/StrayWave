@@ -4,7 +4,8 @@ import UIKit
 /// Обложка из кэша с плейсхолдером. Загрузка — фоновая, через ArtworkCacheService.
 struct ArtworkImage: View {
     let item: MediaItem
-    var size: CGFloat = 44
+    /// nil — размер берётся из خارجية геометрии (полноэкранный плеер).
+    var size: CGFloat? = 44
     var cornerRadius: CGFloat = 6
     /// Для широких видео-превью размер берётся из геометрии снаружи.
     var aspectRatio: CGFloat?
@@ -26,12 +27,15 @@ struct ArtworkImage: View {
                         startPoint: .topLeading, endPoint: .bottomTrailing
                     )
                     Image(systemName: item.kind == .video ? "film" : "music.note")
-                        .font(.system(size: max(12, size * 0.35)))
+                        .font(.system(size: max(12, (size ?? 80) * 0.35)))
                         .foregroundStyle(.white.opacity(0.85))
                 }
             }
         }
-        .frame(width: aspectRatio == nil ? size : nil, height: aspectRatio == nil ? size : nil)
+        .frame(
+            width: aspectRatio == nil ? size : nil,
+            height: aspectRatio == nil ? size : nil
+        )
         .aspectRatio(aspectRatio, contentMode: .fit)
         .clipped()
         .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
@@ -124,5 +128,8 @@ struct MediaRowView: View {
                 .foregroundStyle(.secondary)
         }
         .contentShape(Rectangle())
+        // Стабильная высота строки: без неё индикатор прокрутки «прыгает»,
+        // когда подгружаются обложки.
+        .frame(minHeight: 52)
     }
 }

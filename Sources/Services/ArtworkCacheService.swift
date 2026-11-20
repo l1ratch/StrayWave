@@ -27,7 +27,13 @@ actor ArtworkCacheService {
     func loadImage(fileName: String) -> CGImage? {
         let url = directory.appendingPathComponent(fileName)
         guard let source = CGImageSourceCreateWithURL(url as CFURL, nil) else { return nil }
-        return CGImageSourceCreateImageAtIndex(source, 0, nil)
+        let options: [CFString: Any] = [
+            kCGImageSourceCreateThumbnailFromImageAlways: false,
+            kCGImageSourceThumbnailMaxPixelSize: maxSide,
+            kCGImageSourceShouldCacheImmediately: true
+        ]
+        return CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary)
+            ?? CGImageSourceCreateImageAtIndex(source, 0, nil)
     }
 
     func remove(fileName: String) {
@@ -60,8 +66,7 @@ actor ArtworkCacheService {
             guard let metadata = try? await asset.load(.commonMetadata) else { return nil }
             for item in AVMetadataItem.metadataItems(from: metadata, withKey: AVMetadataKey.commonKeyArtwork, keySpace: .common) {
                 guard let data = try? await item.load(.dataValue),
-                      let source = CGImageSourceCreateWithData(data as CFData, nil),
-                      let image = CGImageSourceCreateImageAtIndex(source, 0, nil) else { continue }
+                      let image = Self.downsampledImage(from: data as CFData) else { continue }
                 return storeJPEG(image, itemID: itemID)
             }
             return nil
@@ -71,6 +76,8 @@ actor ArtworkCacheService {
             let time = CMTime(seconds: max(0, duration.seconds * 0.1), preferredTimescale: 600)
             let generator = AVAssetImageGenerator(asset: asset)
             generator.appliesPreferredTrackTransform = true
+            // Ограничение размера кадра = экономия памяти на 4K-видео.
+            generator.maximumSize = CGSize(width: maxSide * 2, height: maxSide * 2)
             generator.requestedTimeToleranceBefore = CMTime(seconds: 1, preferredTimescale: 600)
             generator.requestedTimeToleranceAfter = CMTime(seconds: 1, preferredTimescale: 600)
             guard let result = try? await generator.image(at: time) else { return nil }
@@ -79,6 +86,20 @@ actor ArtworkCacheService {
     }
 
     // MARK: - Private
+
+    /// Декодирует встроенную картинку СРАЗУ уменьшенной (thumbnail-based).
+    /// Без этого обложка 3000×3000 из ID3 разворачивается в ~36 МБ битпикселя
+    /// и приложение ловит OOM-краш при первом же воспроизведении.
+    private static func downsampledImage(from data: CFData, maxPixel: CGFloat = 1200) -> CGImage? {
+        guard let source = CGImageSourceCreateWithData(data, nil) else { return nil }
+        let options: [CFString: Any] = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceShouldCacheImmediately: true,
+            kCGImageSourceThumbnailMaxPixelSize: maxPixel
+        ]
+        return CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary)
+    }
 
     private func scaledImage(_ image: CGImage) -> CGImage? {
         let width = CGFloat(image.width)

@@ -9,8 +9,10 @@ import SwiftData
 /// клавиатуру при открытии вкладки.
 struct SearchLibraryView: View {
     @Environment(MediaPlayerEngine.self) private var engine
+    @Environment(AppEnvironment.self) private var app
     @Query private var items: [MediaItem]
-    @State private var query = ""
+
+    private var query: String { app.searchQuery }
 
     private var results: [MediaItem] {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -25,6 +27,7 @@ struct SearchLibraryView: View {
     }
 
     var body: some View {
+        @Bindable var app = app
         NavigationStack {
             List {
                 if items.isEmpty {
@@ -46,7 +49,8 @@ struct SearchLibraryView: View {
             }
             .listStyle(.plain)
             .navigationTitle("Поиск")
-            .searchable(text: $query, prompt: "Название, исполнитель, альбом")
+            .navigationBarTitleDisplayMode(.inline)
+            .searchable(text: $app.searchQuery, prompt: "Название, исполнитель, альбом")
         }
     }
 

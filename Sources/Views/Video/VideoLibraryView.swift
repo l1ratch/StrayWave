@@ -13,6 +13,7 @@ struct VideoLibraryView: View {
     @State private var showPlayer = false
     @State private var showImporter = false
     @State private var showCreatePlaylist = false
+    @State private var infoItem: MediaItem?
 
     private var visibleItems: [MediaItem] {
         let filtered = favoritesOnly ? items.filter(\.isFavorite) : items
@@ -58,6 +59,7 @@ struct VideoLibraryView: View {
                 }
             }
             .navigationTitle("Видео")
+            .navigationBarTitleDisplayMode(.inline)
             .navigationDestination(for: UUID.self) { id in
                 PlaylistDetailResolver(id: id)
             }
@@ -93,20 +95,16 @@ struct VideoLibraryView: View {
                     }
                 }
             }
-            .fileImporter(
-                isPresented: $showImporter,
-                allowedContentTypes: SupportedFormats.importContentTypes,
-                allowsMultipleSelection: true
-            ) { result in
-                switch result {
-                case .success(let urls):
+            .sheet(isPresented: $showImporter) {
+                DocumentPicker { urls in
                     Task { await app.importer.importFromFiles(urls: urls) }
-                case .failure(let error):
-                    app.importer.banner = ImportBanner(title: "Ошибка импорта", message: error.localizedDescription)
                 }
             }
             .sheet(isPresented: $showCreatePlaylist) {
                 PlaylistCreateSheet(kind: .video)
+            }
+            .sheet(item: $infoItem) { item in
+                MediaInfoSheet(item: item)
             }
             .fullScreenCover(isPresented: $showPlayer) {
                 NativeVideoPlayerScreen()
@@ -127,6 +125,9 @@ struct VideoLibraryView: View {
             Label("Избранное", systemImage: item.isFavorite ? "heart.slash" : "heart")
         }
         AddToPlaylistMenu(item: item)
+        Button { infoItem = item } label: {
+            Label("Информация", systemImage: "info.circle")
+        }
         Button(role: .destructive) { app.deleteMediaItem(item) } label: {
             Label("Удалить", systemImage: "trash")
         }
@@ -148,16 +149,16 @@ private struct VideoCell: View {
                     .font(.caption2.monospacedDigit().weight(.medium))
                     .padding(.horizontal, 6)
                     .padding(.vertical, 2)
-                    .background(.black.opacity(0.65), in: Capsule())
-                    .foregroundStyle(.white)
+                    // Системный материал: уважает «Уменьшить прозрачность».
+                    .background(.thinMaterial, in: Capsule())
                     .padding(6)
 
                 if item.storageType == .securityBookmark {
                     Image(systemName: "link")
                         .font(.caption2.weight(.bold))
                         .padding(5)
-                        .background(.black.opacity(0.6), in: Circle())
-                        .foregroundStyle(.white)
+                        .background(.regularMaterial, in: Circle())
+                        .foregroundStyle(.secondary)
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                         .padding(6)
                 }
@@ -179,10 +180,14 @@ private struct VideoCell: View {
                 }
             }
             .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+
+            // Фиксированная высота подписи: без неё высоты ячеек меняются по
+            // мере загрузки превью, и индикатор прокрутки «прыгает».
             Text(item.title)
                 .font(.caption)
                 .lineLimit(2)
                 .multilineTextAlignment(.leading)
+                .frame(maxWidth: .infinity, minHeight: 30, alignment: .topLeading)
         }
     }
 }

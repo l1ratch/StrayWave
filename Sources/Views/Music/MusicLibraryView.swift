@@ -12,6 +12,7 @@ struct MusicLibraryView: View {
     @State private var favoritesOnly = false
     @State private var showImporter = false
     @State private var showCreatePlaylist = false
+    @State private var infoItem: MediaItem?
 
     private var visibleItems: [MediaItem] {
         let filtered = favoritesOnly ? items.filter(\.isFavorite) : items
@@ -66,24 +67,23 @@ struct MusicLibraryView: View {
                 }
             }
             .navigationTitle("Музыка")
+            .navigationBarTitleDisplayMode(.inline)
             .navigationDestination(for: UUID.self) { id in
                 PlaylistDetailResolver(id: id)
             }
             .toolbar { toolbarContent }
-            .fileImporter(
-                isPresented: $showImporter,
-                allowedContentTypes: SupportedFormats.importContentTypes,
-                allowsMultipleSelection: true
-            ) { result in
-                switch result {
-                case .success(let urls):
+            // Системный пикер напрямую: у .fileImporter на iOS 26 с несколькими
+            // allowedContentTypes кнопка «Открыть» иногда не завершает выбор.
+            .sheet(isPresented: $showImporter) {
+                DocumentPicker { urls in
                     Task { await app.importer.importFromFiles(urls: urls) }
-                case .failure(let error):
-                    app.importer.banner = ImportBanner(title: "Ошибка импорта", message: error.localizedDescription)
                 }
             }
             .sheet(isPresented: $showCreatePlaylist) {
                 PlaylistCreateSheet(kind: .audio)
+            }
+            .sheet(item: $infoItem) { item in
+                MediaInfoSheet(item: item)
             }
         }
     }
@@ -140,5 +140,9 @@ struct MusicLibraryView: View {
             Label(item.isFavorite ? "Убрать из избранного" : "В избранное", systemImage: item.isFavorite ? "heart.slash" : "heart")
         }
         AddToPlaylistMenu(item: item)
+        Divider()
+        Button { infoItem = item } label: {
+            Label("Информация", systemImage: "info.circle")
+        }
     }
 }

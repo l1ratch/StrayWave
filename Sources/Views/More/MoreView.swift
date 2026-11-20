@@ -7,9 +7,12 @@ struct MoreView: View {
     @Query private var playlists: [Playlist]
     @Query private var items: [MediaItem]
 
+    @State private var editingPlaylist: Playlist?
     @State private var showCreatePlaylist = false
-    @State private var renaming: Playlist?
-    @State private var renameText = ""
+
+    private var sortedPlaylists: [Playlist] {
+        playlists.sorted { $0.createdAt > $1.createdAt }
+    }
 
     var body: some View {
         NavigationStack {
@@ -19,25 +22,33 @@ struct MoreView: View {
                         Text("Плейлисты создаются кнопкой «+» на вкладках «Музыка» и «Видео».")
                             .foregroundStyle(.secondary)
                     } else {
-                        ForEach(playlists.sorted { $0.createdAt > $1.createdAt }) { playlist in
+                        ForEach(sortedPlaylists) { playlist in
                             NavigationLink(value: playlist.id) {
                                 HStack(spacing: 12) {
-                                    Image(systemName: playlist.kind == .video ? "film" : "music.note.list")
-                                        .foregroundStyle(.secondary)
-                                    VStack(alignment: .leading, spacing: 1) {
+                                    PlaylistArtwork(playlist: playlist, items: items(of: playlist))
+                                    VStack(alignment: .leading, spacing: 2) {
                                         Text(playlist.name)
-                                        Text("\(playlist.itemIDs.count) • \(playlist.kind == .video ? "видео" : "музыка")")
-                                            .font(.caption)
-                                            .foregroundStyle(.secondary)
+                                        HStack(spacing: 4) {
+                                            Image(systemName: playlist.kind == .video ? "film" : "music.note")
+                                                .font(.caption2)
+                                            Text("\(playlist.itemIDs.count) • \(playlist.kind == .video ? "видео" : "музыка")")
+                                        }
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                        if let description = playlist.trimmedDescription {
+                                            Text(description)
+                                                .font(.caption)
+                                                .foregroundStyle(.tertiary)
+                                                .lineLimit(1)
+                                        }
                                     }
                                 }
                             }
                             .contextMenu {
                                 Button {
-                                    renameText = playlist.name
-                                    renaming = playlist
+                                    editingPlaylist = playlist
                                 } label: {
-                                    Label("Переименовать", systemImage: "pencil")
+                                    Label("Изменить", systemImage: "pencil")
                                 }
                                 Button(role: .destructive) {
                                     context.delete(playlist)
@@ -68,28 +79,45 @@ struct MoreView: View {
                 }
             }
             .navigationTitle("Ещё")
+            .navigationBarTitleDisplayMode(.inline)
             .navigationDestination(for: UUID.self) { id in
                 PlaylistDetailResolver(id: id)
+            }
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Menu {
+                        Button {
+                            showCreatePlaylist = true
+                        } label: {
+                            Label("Новый музыкальный", systemImage: "music.note.list")
+                        }
+                        Button {
+                            showCreateVideoPlaylist = true
+                        } label: {
+                            Label("Новый видео", systemImage: "film")
+                        }
+                    } label: {
+                        Image(systemName: "plus")
+                    }
+                }
+            }
+            .sheet(item: $editingPlaylist) { playlist in
+                PlaylistEditSheet(playlist: playlist)
             }
             .sheet(isPresented: $showCreatePlaylist) {
                 PlaylistCreateSheet(kind: .audio)
             }
-            .alert("Переименовать плейлист", isPresented: Binding(
-                get: { renaming != nil },
-                set: { if !$0 { renaming = nil } }
-            )) {
-                TextField("Название", text: $renameText)
-                Button("Сохранить") {
-                    let trimmed = renameText.trimmingCharacters(in: .whitespacesAndNewlines)
-                    if !trimmed.isEmpty {
-                        renaming?.name = trimmed
-                        try? context.save()
-                    }
-                    renaming = nil
-                }
-                Button("Отмена", role: .cancel) { renaming = nil }
+            .sheet(isPresented: $showCreateVideoPlaylist) {
+                PlaylistCreateSheet(kind: .video)
             }
         }
+    }
+
+    @State private var showCreateVideoPlaylist = false
+
+    private func items(of playlist: Playlist) -> [MediaItem] {
+        let byID = Dictionary(items.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        return playlist.itemIDs.compactMap { byID[$0] }
     }
 
     private var librarySizeText: String {

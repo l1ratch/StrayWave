@@ -37,6 +37,14 @@ final class FileImportService {
         do {
             _ = try copyIntoDocuments(url)
             await AppEnvironment.shared.rescanLibrary()
+        } catch let skip as ImportSkipped {
+            switch skip {
+            case .alreadyInLibrary(let name):
+                banner = ImportBanner(
+                    title: "Уже в библиотеке",
+                    message: "«\(name)» с таким содержимым уже добавлен — копия не создана."
+                )
+            }
         } catch {
             banner = ImportBanner(title: "Ошибка импорта", message: error.localizedDescription)
         }
@@ -106,6 +114,7 @@ final class FileImportService {
     /// Возвращает false, если файл уже лежит в Documents (копия в библиотеке).
     private func saveBookmark(_ url: URL) throws -> Bool {
         guard LibraryPathResolver.relativePath(for: url) == nil else { return false }
+        guard existingCopy(of: url) == nil else { return false }
         let data = try url.bookmarkData(options: [], includingResourceValuesForKeys: nil, relativeTo: nil)
         guard let container = AppEnvironment.shared.modelContainer else { return true }
         let context = ModelContext(container)
@@ -120,11 +129,45 @@ final class FileImportService {
         return true
     }
 
+    /// Уже есть файл с таким именем и размером — дубликат не создаём.
+    private func existingCopy(of url: URL) -> URL? {
+        let documents = LibraryPathResolver.documentsDirectory
+        let normalizedName = Self.normalize(name: url.lastPathComponent).lowercased()
+        let size = (try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize).flatMap { Int64($0) } ?? -1
+        guard let enumerator = FileManager.default.enumerator(
+            at: documents,
+            includingPropertiesForKeys: [.fileSizeKey],
+            options: [.skipsHiddenFiles]
+        ) else { return nil }
+        while let candidate = enumerator.nextObject() as? URL {
+            guard Self.normalize(name: candidate.lastPathComponent).lowercased() == normalizedName else { continue }
+            let candidateSize = (try? candidate.resourceValues(forKeys: [.fileSizeKey]).fileSize).flatMap { Int64($0) } ?? -2
+            if candidateSize == size { return candidate }
+        }
+        return nil
+    }
+
+    /// «Трек (1).mp3» → «Трек.mp3»: при пересылке iOS дописывает счётчики,
+    /// из-за чего один и тот же файл превращался в дубли библиотеки.
+    private static func normalize(name: String) -> String {
+        let base = (name as NSString).deletingPathExtension
+        let ext = (name as NSString).pathExtension
+        var trimmed = base
+        while let range = trimmed.range(of: #"\s*[((]\s*(?:[1-9]|[1-2][0-9]|3[0-2])\s*[))]\s*$"#, options: .regularExpression) {
+            trimmed.removeSubrange(range)
+        }
+        return ext.isEmpty ? trimmed : "\(trimmed).\(ext)"
+    }
+
     private func copyIntoDocuments(_ url: URL) throws -> URL {
         let documents = LibraryPathResolver.documentsDirectory
+        if !url.hasDirectoryPath, let existing = existingCopy(of: url) {
+            throw ImportSkipped.alreadyInLibrary(existing.lastPathComponent)
+        }
         var isDirectory: ObjCBool = false
         FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory)
-        let destination = LibraryPathResolver.uniqueDestination(for: url.lastPathComponent, in: documents)
+        let finalName = isDirectory.boolValue ? url.lastPathComponent : Self.normalize(name: url.lastPathComponent)
+        let destination = LibraryPathResolver.uniqueDestination(for: finalName, in: documents)
         if isDirectory.boolValue {
             try FileManager.default.copyItem(at: url, to: destination)
         } else {
@@ -139,5 +182,16 @@ final class FileImportService {
             if let coordinationError { throw coordinationError }
         }
         return destination
+    }
+}
+
+/// Файл уже в библиотеке — это не ошибка, отдельный сигнал для баннера.
+enum ImportSkipped: LocalizedError {
+    case alreadyInLibrary(String)
+
+    var errorDescription: String? {
+        switch self {
+        case .alreadyInLibrary(let name): return "«\(name)» уже добавлен."
+        }
     }
 }

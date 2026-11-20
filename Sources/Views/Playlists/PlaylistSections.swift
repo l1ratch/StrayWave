@@ -1,44 +1,6 @@
 import SwiftUI
 import SwiftData
 
-// MARK: - Создание плейлиста
-
-/// Универсальный лист создания плейлиста (muz/видео).
-struct PlaylistCreateSheet: View {
-    @Environment(\.dismiss) private var dismiss
-    @Environment(\.modelContext) private var context
-
-    let kind: MediaKind
-    @State private var name = ""
-    @FocusState private var nameFocused: Bool
-
-    var body: some View {
-        NavigationStack {
-            Form {
-                TextField(kind == .video ? "Название видео-плейлиста" : "Название плейлиста", text: $name)
-                    .focused($nameFocused)
-            }
-            .navigationTitle("Новый плейлист")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Отмена") { dismiss() } }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Создать") {
-                        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
-                        guard !trimmed.isEmpty else { return }
-                        context.insert(Playlist(name: trimmed, kind: kind))
-                        try? context.save()
-                        dismiss()
-                    }
-                    .disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                }
-            }
-        }
-        .presentationDetents([.height(180)])
-        .onAppear { nameFocused = true }
-    }
-}
-
 // MARK: - Секция плейлистов в «Музыке» (в стиле Apple Music)
 
 struct MusicPlaylistsSection: View {
@@ -60,9 +22,10 @@ struct MusicPlaylistsSection: View {
                             PlaylistArtwork(playlist: playlist, items: items(of: playlist))
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(playlist.name)
-                                Text("\(playlist.itemIDs.count) треков")
+                                Text(subtitle(for: playlist))
                                     .font(.subheadline)
                                     .foregroundStyle(.secondary)
+                                    .lineLimit(1)
                             }
                         }
                     }
@@ -71,13 +34,21 @@ struct MusicPlaylistsSection: View {
         }
     }
 
+    private func subtitle(for playlist: Playlist) -> String {
+        let count = "\(playlist.itemIDs.count) треков"
+        if let description = playlist.trimmedDescription {
+            return "\(count) · \(description)"
+        }
+        return count
+    }
+
     private func items(of playlist: Playlist) -> [MediaItem] {
         let byID = Dictionary(allItems.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         return playlist.itemIDs.compactMap { byID[$0] }
     }
 }
 
-/// Обложка плейлиста: коллаж из 4 превью или градиент с иконкой.
+/// Обложка плейлиста: пользовательская картинка → превью первого трека → градиент.
 struct PlaylistArtwork: View {
     let playlist: Playlist
     let items: [MediaItem]
@@ -86,15 +57,21 @@ struct PlaylistArtwork: View {
 
     var body: some View {
         Group {
-            if let first = items.first {
+            if let data = playlist.coverImageData, let image = UIImage(data: data) {
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFill()
+            } else if let first = items.first {
                 ArtworkImage(item: first, size: size, cornerRadius: cornerRadius)
             } else {
                 ZStack {
                     LinearGradient(
-                        colors: [.indigo.opacity(0.6), .purple.opacity(0.4)],
+                        colors: playlist.kind == .video
+                            ? [.indigo.opacity(0.6), .purple.opacity(0.4)]
+                            : [.blue.opacity(0.5), .teal.opacity(0.3)],
                         startPoint: .topLeading, endPoint: .bottomTrailing
                     )
-                    Image(systemName: "music.note.list")
+                    Image(systemName: playlist.kind == .video ? "film.fill" : "music.note.list")
                         .font(.system(size: size * 0.4))
                         .foregroundStyle(.white.opacity(0.9))
                 }

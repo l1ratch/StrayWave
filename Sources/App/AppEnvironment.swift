@@ -13,7 +13,9 @@ final class AppEnvironment {
     let spotlight = SpotlightIndexer()
 
     private(set) var modelContainer: ModelContainer?
-    private var isConfigured = false
+    var isConfigured = false
+    /// Живой запрос поиска — общий для RootTabView (возврат вкладок) и вкладки.
+    var searchQuery = ""
     private var isScanning = false
     private var rescanRequested = false
 

@@ -11,6 +11,7 @@ struct RootTabView: View {
     @Environment(FileImportService.self) private var importer
 
     @State private var selection: AppTab = .music
+    @State private var lastNonSearchTab: AppTab = .music
     @State private var showFullPlayer = false
     @Namespace private var playerNamespace
 
@@ -32,6 +33,18 @@ struct RootTabView: View {
             } else {
                 tabView
             }
+        }
+        .onChange(of: selection) { old, new in
+            if new == .search {
+                if old != .search { lastNonSearchTab = old }
+                SearchFieldActivator.activate()
+            }
+        }
+        // Клавa скрыта, запроса нет — возвращаем dock на прежнюю страницу.
+        // С запросом остаёмся на раскрытой области результатов.
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
+            guard selection == .search, app.searchQuery.isEmpty else { return }
+            selection = lastNonSearchTab
         }
         .fullScreenCover(isPresented: $showFullPlayer) {
             FullScreenAudioPlayerView()
