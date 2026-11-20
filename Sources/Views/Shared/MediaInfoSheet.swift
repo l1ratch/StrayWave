@@ -90,7 +90,23 @@ struct MediaInfoSheet: View {
     }
 
     private func load() async {
-        let detail = await MediaMetadataReader.shared.detail(for: item)
+        // В actor отдаём Sendable-слепок: сам @Model через границу изоляции
+        // не переносится.
+        let request = MediaInfoRequest(
+            title: item.title,
+            subtitle: item.displayArtist,
+            storageType: item.storageType,
+            relativePath: item.relativePath,
+            bookmarkData: item.bookmarkData,
+            duration: item.duration,
+            fileSize: item.fileSize,
+            dateAdded: item.dateAdded,
+            playCount: item.playCount,
+            isFavorite: item.isFavorite,
+            kind: item.kind,
+            artworkFileName: item.artworkFileName
+        )
+        let detail = await MediaMetadataReader.shared.detail(for: request)
         self.detail = detail
         if let fileName = item.artworkFileName,
            let cgImage = await ArtworkCacheService.shared.loadImage(fileName: fileName) {

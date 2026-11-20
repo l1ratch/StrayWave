@@ -24,16 +24,33 @@ struct MediaFileDetail: Sendable {
     var sections: [MediaDetailSection]
 }
 
+/// Sendable-слепок записи, передаваемый в actor (сам @Model через границу
+/// изоляции не переносится).
+struct MediaInfoRequest: Sendable {
+    let title: String
+    let subtitle: String
+    let storageType: MediaStorageType
+    let relativePath: String?
+    let bookmarkData: Data?
+    let duration: TimeInterval
+    let fileSize: Int64
+    let dateAdded: Date
+    let playCount: Int
+    let isFavorite: Bool
+    let kind: MediaKind
+    let artworkFileName: String?
+}
+
 /// Полное чтение метаданных медиафайла: контейнер, дорожки, кодеки, теги.
 /// Работает в фоне (actor), MainActor не блокируется.
 actor MediaMetadataReader {
     static let shared = MediaMetadataReader()
 
-    func detail(for item: MediaItem) async -> MediaFileDetail {
-        guard let resolved = resolveURL(for: item) else {
+    func detail(for request: MediaInfoRequest) async -> MediaFileDetail {
+        guard let resolved = resolveURL(for: request) else {
             return MediaFileDetail(
-                title: item.title,
-                subtitle: item.displayArtist,
+                title: request.title,
+                subtitle: request.subtitle,
                 hasArtwork: false,
                 sections: [MediaDetailSection(title: "Файл", rows: [
                     MediaDetailRow(label: "Состояние", value: "Файл недоступен: ссылка потеряна или носитель отключён")
@@ -45,29 +62,29 @@ actor MediaMetadataReader {
         let url = resolved.url
         let asset = AVURLAsset(url: url)
         var sections: [MediaDetailSection] = []
-        sections.append(fileSection(item: item, url: url))
-        sections.append(contentsOf: await playbackSection(asset: asset, url: url))
+        sections.append(fileSection(request: request, url: url))
+        sections.append(contentsOf: await playbackSection(asset: asset, url: url, request: request))
         sections.append(contentsOf: await audioSection(asset: asset))
         sections.append(contentsOf: await videoSection(asset: asset))
         sections.append(contentsOf: await tagsSection(asset: asset))
         sections.removeAll { $0.rows.isEmpty }
 
         return MediaFileDetail(
-            title: item.title,
-            subtitle: item.displayArtist,
-            hasArtwork: item.artworkFileName != nil || await hasEmbeddedArtwork(asset: asset),
+            title: request.title,
+            subtitle: request.subtitle,
+            hasArtwork: request.artworkFileName != nil || await hasEmbeddedArtwork(asset: asset),
             sections: sections
         )
     }
 
     // MARK: - Файл
 
-    private func fileSection(item: MediaItem, url: URL) -> MediaDetailSection {
+    private func fileSection(request: MediaInfoRequest, url: URL) -> MediaDetailSection {
         var rows: [MediaDetailRow] = [.init(label: "Имя файла", value: url.lastPathComponent)]
-        switch item.storageType {
+        switch request.storageType {
         case .localDocuments:
             rows.append(.init(label: "Хранилище", value: "Копия в приложении"))
-            if let path = item.relativePath {
+            if let path = request.relativePath {
                 rows.append(.init(label: "Путь", value: "StrayWave/\(path)"))
             }
         case .securityBookmark:
@@ -82,7 +99,7 @@ actor MediaMetadataReader {
                 rows.append(.init(label: "Изменён", value: Self.dateFormatter.string(from: date)))
             }
         }
-        rows.append(.init(label: "Добавлен", value: Self.dateFormatter.string(from: item.dateAdded)))
+        rows.append(.init(label: "Добавлен", value: Self.dateFormatter.string(from: request.dateAdded)))
         if let type = UTType(filenameExtension: url.pathExtension.lowercased()) {
             var text = type.identifier
             if type.conforms(to: .movie) { text += " · видео" }
@@ -90,14 +107,14 @@ actor MediaMetadataReader {
             if let mime = type.preferredMIMEType { text += " · \(mime)" }
             rows.append(.init(label: "Контейнер", value: text))
         }
-        rows.append(.init(label: "Проигран раз", value: "\(item.playCount)"))
-        if item.isFavorite { rows.append(.init(label: "Избранное", value: "да")) }
+        rows.append(.init(label: "Проигран раз", value: "\(request.playCount)"))
+        if request.isFavorite { rows.append(.init(label: "Избранное", value: "да")) }
         return MediaDetailSection(title: "Файл", rows: rows)
     }
 
     // MARK: - Воспроизведение
 
-    private func playbackSection(asset: AVAsset, url: URL) async -> [MediaDetailSection] {
+    private func playbackSection(asset: AVAsset, url: URL, request: MediaInfoRequest) async -> [MediaDetailSection] {
         var rows: [MediaDetailRow] = []
         let duration = (try? await asset.load(.duration)) ?? .zero
         if duration.isNumeric, duration.seconds > 0 {
@@ -245,7 +262,7 @@ actor MediaMetadataReader {
         "TRCK": "Номер трека", "TPOS": "Номер диска", "TPE1": "Исполнитель", "COMM": "Комментарий"
     ]
 
-    private func tagLabel(_ item: any AVMetadataItemValueProvider) -> String {
+    private func tagLabel(_ item: any AVMetadataItemValueProviding) -> String {
         if let common = item.commonKey {
             return Self.tagLabels[common.rawValue] ?? common.rawValue
         }
@@ -277,15 +294,15 @@ actor MediaMetadataReader {
         let startedScope: Bool
     }
 
-    private func resolveURL(for item: MediaItem) -> ResolvedMedia? {
-        switch item.storageType {
+    private func resolveURL(for request: MediaInfoRequest) -> ResolvedMedia? {
+        switch request.storageType {
         case .localDocuments:
-            guard let path = item.relativePath,
+            guard let path = request.relativePath,
                   let url = LibraryPathResolver.absoluteURL(for: path),
                   FileManager.default.fileExists(atPath: url.path) else { return nil }
             return ResolvedMedia(url: url, startedScope: false)
         case .securityBookmark:
-            guard let data = item.bookmarkData,
+            guard let data = request.bookmarkData,
                   let url = try? URL(resolvingBookmarkData: data, options: [], relativeTo: nil, bookmarkDataIsStale: nil),
                   FileManager.default.fileExists(atPath: url.path) else { return nil }
             return ResolvedMedia(url: url, startedScope: url.startAccessingSecurityScopedResource())
