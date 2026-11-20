@@ -140,7 +140,7 @@ final class FileImportService {
         for record in existing where record.storageType == .securityBookmark {
             guard let recordData = record.bookmarkData else { continue }
             var stale = false
-            if let resolved = try? URL(resolvingBookmarkData: recordData, options: .withSecurityScope, relativeTo: nil, bookmarkDataIsStale: &stale),
+            if let resolved = try? URL(resolvingBookmarkData: recordData, options: [], relativeTo: nil, bookmarkDataIsStale: &stale),
                resolved.standardizedFileURL.path == targetPath {
                 return false
             }
