@@ -50,17 +50,15 @@ final class FileImportService {
         }
     }
 
-    // MARK: - Импорт из «Файлов» → ссылка без копирования
+    // MARK: - Импорт из «Файлов» (asCopy: true → копия в Documents)
 
     func importFromFiles(urls: [URL]) async {
-        // Видимая диагностика цепочки: если этот баннер не появился вообще —
-        // не сработал сам пикер, если появился, а файлов нет — проблема в
-        // сохранении/сканере. По тексту пользователь видит, где обрыв.
-        banner = ImportBanner(title: "Импорт из «Файлов»", message: "Выбрано: \(urls.count). Сохраняю ссылки…")
+        // Диагностика цепочки по журналам видна в «Ещё → Диагностика».
+        banner = ImportBanner(title: "Импорт из «Файлов»", message: "Выбрано: \(urls.count). Копирую…")
         DebugLog.shared.add("📥 importFromFiles: \(urls.count) URL")
 
-        var linkedFiles = 0
-        var skippedCopied = 0
+        var copiedFiles = 0
+        var skipped = 0
         var failed = 0
         var firstError: String?
 
@@ -72,7 +70,15 @@ final class FileImportService {
                 FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory)
                 if isDirectory.boolValue {
                     for file in mediaFiles(inside: url) {
-                        if try saveBookmark(file) { linkedFiles += 1 } else { skippedCopied += 1 }
+                        do {
+                            _ = try copyIntoDocuments(file)
+                            copiedFiles += 1
+                        } catch let skip as ImportSkipped {
+                            skipped += 1
+                        } catch {
+                            failed += 1
+                            if firstError == nil { firstError = error.localizedDescription }
+                        }
                     }
                 } else if SupportedFormats.isUnsupportedMedia(url) {
                     failed += 1
@@ -80,12 +86,15 @@ final class FileImportService {
                 } else if SupportedFormats.kind(for: url) == nil {
                     DebugLog.shared.add("⚠️ пропуск (kind == nil): \(url.lastPathComponent)")
                     continue
-                } else if try saveBookmark(url) {
-                    linkedFiles += 1
-                    DebugLog.shared.add("✅ bookmark сохранён: \(url.lastPathComponent)")
                 } else {
-                    skippedCopied += 1
-                    DebugLog.shared.add("↩️ пропуск (уже есть): \(url.lastPathComponent)")
+                    do {
+                        _ = try copyIntoDocuments(url)
+                        copiedFiles += 1
+                        DebugLog.shared.add("✅ скопирован: \(url.lastPathComponent)")
+                    } catch let skip as ImportSkipped {
+                        skipped += 1
+                        DebugLog.shared.add("↩️ пропуск (уже есть): \(url.lastPathComponent)")
+                    }
                 }
             } catch {
                 failed += 1
@@ -94,26 +103,25 @@ final class FileImportService {
             }
         }
 
-        DebugLog.shared.add("📊 итог: добавлено \(linkedFiles), пропущено \(skippedCopied), ошибок \(failed)")
+        DebugLog.shared.add("📊 итог: скопировано \(copiedFiles), пропущено \(skipped), ошибок \(failed)")
 
         if failed > 0 {
             banner = ImportBanner(
                 title: "Ошибка импорта",
                 message: firstError ?? "AVFoundation не умеет эти контейнеры. Поддерживаются: mp3, m4a, aac, flac, alac, wav, aiff, mp4, mov, m4v."
             )
-        } else if skippedCopied > 0 && linkedFiles == 0 {
+        } else if skipped > 0 && copiedFiles == 0 {
             banner = ImportBanner(
                 title: "Уже в библиотеке",
-                message: "Файлы из папки StrayWave в «Файлах» добавляются автоматически — отдельно их импортировать не нужно."
+                message: "Эти файлы уже добавлены — копии не созданы."
             )
-        } else if linkedFiles > 0 {
-            // Позитивная обратная связь: видно, что импорт действительно случился.
+        } else if copiedFiles > 0 {
             banner = ImportBanner(
                 title: "Добавлено в библиотеку",
-                message: "Ссылок на файлы: \(linkedFiles). Копирование не требовалось — треки читаются с исходного места."
+                message: "Скопировано файлов: \(copiedFiles). Сканер подхватит их автоматически."
             )
         }
-        if linkedFiles > 0 { await AppEnvironment.shared.rescanLibrary() }
+        if copiedFiles > 0 { await AppEnvironment.shared.rescanLibrary() }
     }
 
     // MARK: - Private
@@ -133,37 +141,9 @@ final class FileImportService {
     }
 
     /// Возвращает false, если файл уже есть в библиотеке (копия или bookmark).
-    private func saveBookmark(_ url: URL) throws -> Bool {
-        guard LibraryPathResolver.relativePath(for: url) == nil else { return false }
-        guard existingCopy(of: url) == nil else { return false }
-        // На iOS bookmark всегда security-scoped; опция .withSecurityScope —
-        // macOS-only, на iOS недоступна. Поэтому options: [].
-        let data = try url.bookmarkData(options: [], includingResourceValuesForKeys: nil, relativeTo: nil)
-        guard let container = AppEnvironment.shared.modelContainer else { return true }
-        let context = ModelContext(container)
-
-        // Не плодим bookmark-дубли: та же целевая ссылка = уже есть в базе.
-        let existing = (try? context.fetch(FetchDescriptor<MediaItem>())) ?? []
-        let targetPath = url.standardizedFileURL.path
-        for record in existing where record.storageType == .securityBookmark {
-            guard let recordData = record.bookmarkData else { continue }
-            var stale = false
-            if let resolved = try? URL(resolvingBookmarkData: recordData, options: [], relativeTo: nil, bookmarkDataIsStale: &stale),
-               resolved.standardizedFileURL.path == targetPath {
-                return false
-            }
-        }
-
-        let item = MediaItem(
-            kind: SupportedFormats.kind(for: url) ?? .audio,
-            storageType: .securityBookmark,
-            bookmarkData: data,
-            title: url.deletingPathExtension().lastPathComponent
-        )
-        context.insert(item)
-        try context.save()
-        return true
-    }
+    // (saveBookmark удалён: в среде GBox asCopy:false всегда завершался
+    // «отменой» — подтверждено журналом диагностики. Импорт из «Файлов»
+    // переведён на копирование, как и «Поделиться».)
 
     /// Уже есть файл с таким именем и размером — дубликат не создаём.
     private func existingCopy(of url: URL) -> URL? {

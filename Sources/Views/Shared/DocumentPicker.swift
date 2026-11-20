@@ -5,12 +5,11 @@ import UniformTypeIdentifiers
 /// Системный выборщик файлов, который презентуется НАПРЯМУЮ через UIKit от
 /// верхнего контроллера активного окна.
 ///
-/// Почему не `.fileImporter` и не `UIViewControllerRepresentable`:
-/// в этой связке (TabView + tabViewBottomAccessory, iOS 26) результат выбора
-/// не доходил до приложения — кнопка «Открыть» визуально срабатывала, но
-/// комплита не приходила. Прямой `present` от окна минует SwiftUI-презентацию
-/// целиком. Делегат у `UIDocumentPickerViewController` слабый, поэтому
-/// удерживаем его сами до завершения выбора.
+/// Почему asCopy: true:
+/// с asCopy: false нажимание «Открыть» в среде GBox завершалось как «отмена» —
+/// это подтверждено журналом диагностики (после present всегда приходил
+/// cancel, никогда didPick). Режим копирования отдаёт реальные URL временных
+/// копий файлов — он работает, это тот же путь, что и «Поделиться».
 @MainActor
 enum FilePickerPresenter {
     private static var retainedDelegates: [ObjectIdentifier: PickerDelegate] = [:]
@@ -26,7 +25,7 @@ enum FilePickerPresenter {
             onCancel()
             return
         }
-        let picker = UIDocumentPickerViewController(forOpeningContentTypes: contentTypes, asCopy: false)
+        let picker = UIDocumentPickerViewController(forOpeningContentTypes: contentTypes, asCopy: true)
         picker.allowsMultipleSelection = allowsMultipleSelection
         picker.shouldShowFileExtensions = false
         picker.modalPresentationStyle = .fullScreen
