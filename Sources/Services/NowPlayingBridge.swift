@@ -8,7 +8,6 @@ final class NowPlayingBridge {
     private weak var engine: MediaPlayerEngine?
     private let center = MPRemoteCommandCenter.shared()
     private let infoCenter = MPNowPlayingInfoCenter.default()
-    private var artworkTask: Task<Void, Never>?
 
     init(engine: MediaPlayerEngine) {
         self.engine = engine
@@ -32,36 +31,37 @@ final class NowPlayingBridge {
         center.skipForwardCommand.isEnabled = engine.supportsSkipCommands
         center.skipBackwardCommand.isEnabled = engine.supportsSkipCommands
 
-        if let fileName = item.artworkFileName {
-            let id = item.id
-            artworkTask?.cancel()
-            artworkTask = Task { [weak self] in
-                guard let cgImage = await ArtworkCacheService.shared.loadImage(fileName: fileName),
-                      !Task.isCancelled else { return }
-                // Перерисовываем в opaque RGB: встроенные ID3-обложки бывают с
-                // экзотическими цветовыми профилями (CMYK/16-bit), из-за чего
-                // UIImage(cgImage:) в nowPlayingInfo приводил к крашу.
-                let format = UIGraphicsImageRendererFormat.default()
-                format.opaque = true
-                format.scale = 1
-                let targetSize = CGSize(width: cgImage.width, height: cgImage.height)
-                guard targetSize.width > 0, targetSize.height > 0 else { return }
-                let renderer = UIGraphicsImageRenderer(size: targetSize, format: format)
-                let image = renderer.image { _ in
-                    UIImage(cgImage: cgImage).draw(in: CGRect(origin: .zero, size: targetSize))
-                }
-                let artwork = MPMediaItemArtwork(boundsSize: image.size) { _ in image }
-                await MainActor.run {
-                    guard self?.engine?.currentItem?.id == id else { return }
-                    self?.infoCenter.nowPlayingInfo?[MPMediaItemPropertyArtwork] = artwork
-                }
-            }
+        // Обложка грузится СИНХРОННО с главного потока из маленького кэш-файла
+        // (≤600 px JPEG) и нормализуется в opaque RGB. Асинхронный путь через
+        // actor + Task давал краш при воспроизведении треков с встроенной
+        // обложкой (экзотические цветовые профили ID3).
+        if let fileName = item.artworkFileName, let artwork = sanitizedArtwork(fileName: fileName) {
+            info[MPMediaItemPropertyArtwork] = artwork
         }
         infoCenter.nowPlayingInfo = info
     }
 
-    // MARK: - Remote commands
+    /// Обложка для локскрина: синхронная загрузка кэша + перерисовка в RGB.
+    private func sanitizedArtwork(fileName: String) -> MPMediaItemArtwork? {
+        let url = ArtworkCacheService.localURL(for: fileName)
+        guard let image = UIImage(contentsOfFile: url.path),
+              image.size.width > 0, image.size.height > 0 else { return nil }
+        let maxSide: CGFloat = 600
+        let scale = min(1, maxSide / max(image.size.width, image.size.height))
+        let size = CGSize(width: max(1, image.size.width * scale), height: max(1, image.size.height * scale))
+        let format = UIGraphicsImageRendererFormat.default()
+        format.opaque = true
+        format.scale = 1
+        let renderer = UIGraphicsImageRenderer(size: size, format: format)
+        let normalized = renderer.image { _ in
+            image.draw(in: CGRect(origin: .zero, size: size))
+        }
+        guard normalized.size.width > 0, normalized.size.height > 0 else { return nil }
+        // boundsSize нулевым быть не должен — это роняло nowPlayingInfo.
+        return MPMediaItemArtwork(boundsSize: normalized.size) { _ in normalized }
+    }
 
+    // MARK: - Remote commands
     private func configureCommands() {
         // MPRemoteCommandCenter вызывает обработчики на главном потоке.
         center.playCommand.addTarget { [weak self] _ in

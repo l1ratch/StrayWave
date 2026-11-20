@@ -10,7 +10,6 @@ struct MusicLibraryView: View {
 
     @State private var sortOrder: MediaSortOrder = .dateAdded
     @State private var favoritesOnly = false
-    @State private var showImporter = false
     @State private var showCreatePlaylist = false
     @State private var infoItem: MediaItem?
 
@@ -72,13 +71,6 @@ struct MusicLibraryView: View {
                 PlaylistDetailResolver(id: id)
             }
             .toolbar { toolbarContent }
-            // Системный пикер напрямую в fullScreenCover: .fileImporter на iOS 26
-            // терял комплиту, .sheet для documentPicker тоже нестабилен.
-            .fullScreenCover(isPresented: $showImporter) {
-                DocumentPicker { urls in
-                    Task { await app.importer.importFromFiles(urls: urls) }
-                }
-            }
             .sheet(isPresented: $showCreatePlaylist) {
                 PlaylistCreateSheet(kind: .audio)
             }
@@ -113,7 +105,9 @@ struct MusicLibraryView: View {
         ToolbarItem(placement: .topBarTrailing) {
             Menu {
                 Button {
-                    showImporter = true
+                    FilePickerPresenter.present { urls in
+                        Task { await app.importer.importFromFiles(urls: urls) }
+                    }
                 } label: {
                     Label("Добавить из «Файлов»…", systemImage: "folder")
                 }

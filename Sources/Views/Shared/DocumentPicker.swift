@@ -2,42 +2,82 @@ import SwiftUI
 import UIKit
 import UniformTypeIdentifiers
 
-/// Системный выборщик файлов через UIDocumentPickerViewController напрямую.
+/// Системный выборщик файлов, который презентуется НАПРЯМУЮ через UIKit от
+/// верхнего контроллера активного окна.
 ///
-/// `.fileImporter` на iOS 26 с несколькими allowedContentTypes и
-/// allowsMultipleSelection иногда «вечит» кнопку «Открыть» (комплитация не
-/// приходит). Прямое представление контроллера с asCopy:false даёт рабочий
-/// пикер и URL'ы, пригодные для Security-Scoped Bookmarks.
-struct DocumentPicker: UIViewControllerRepresentable {
-    var contentTypes: [UTType] = SupportedFormats.importContentTypes
-    var allowsMultipleSelection: Bool = true
-    /// onCancel идёт ПЕРЕД onPick: trailing-closure привязывается к onPick
-    /// ([URL]) -> Void, а не к onCancel без аргументов.
-    var onCancel: () -> Void = {}
-    var onPick: ([URL]) -> Void
+/// Почему не `.fileImporter` и не `UIViewControllerRepresentable`:
+/// в этой связке (TabView + tabViewBottomAccessory, iOS 26) результат выбора
+/// не доходил до приложения — кнопка «Открыть» визуально срабатывала, но
+/// комплита не приходила. Прямой `present` от окна минует SwiftUI-презентацию
+/// целиком. Делегат у `UIDocumentPickerViewController` слабый, поэтому
+/// удерживаем его сами до завершения выбора.
+@MainActor
+enum FilePickerPresenter {
+    private static var retainedDelegates: [ObjectIdentifier: PickerDelegate] = [:]
 
-    func makeUIViewController(context: Context) -> UIDocumentPickerViewController {
+    static func present(
+        contentTypes: [UTType] = SupportedFormats.importContentTypes,
+        allowsMultipleSelection: Bool = true,
+        onPick: @escaping ([URL]) -> Void,
+        onCancel: @escaping () -> Void = {}
+    ) {
+        guard let host = topViewController() else {
+            onCancel()
+            return
+        }
         let picker = UIDocumentPickerViewController(forOpeningContentTypes: contentTypes, asCopy: false)
         picker.allowsMultipleSelection = allowsMultipleSelection
         picker.shouldShowFileExtensions = false
-        picker.delegate = context.coordinator
-        return picker
+        picker.modalPresentationStyle = .fullScreen
+
+        let identifier = ObjectIdentifier(picker)
+        let delegate = PickerDelegate(
+            onPick: { urls in
+                retainedDelegates[identifier] = nil
+                onPick(urls)
+            },
+            onCancel: {
+                retainedDelegates[identifier] = nil
+                onCancel()
+            }
+        )
+        retainedDelegates[identifier] = delegate
+        picker.delegate = delegate
+        host.present(picker, animated: true)
     }
 
-    func updateUIViewController(_ picker: UIDocumentPickerViewController, context: Context) {
-        context.coordinator.parent = self
+    private static func topViewController() -> UIViewController? {
+        let window = UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .flatMap(\.windows)
+            .first { $0.isKeyWindow }
+        guard var controller = window?.rootViewController else { return nil }
+        while let presented = controller.presentedViewController {
+            controller = presented
+        }
+        if let navigation = controller as? UINavigationController {
+            return navigation.visibleViewController ?? navigation
+        }
+        if let tab = controller as? UITabBarController {
+            return tab.selectedViewController ?? tab
+        }
+        return controller
     }
-
-    func makeCoordinator() -> Coordinator { Coordinator(parent: self) }
 
     @MainActor
-    final class Coordinator: NSObject, UIDocumentPickerDelegate {
-        var parent: DocumentPicker
-        init(parent: DocumentPicker) { self.parent = parent }
+    final class PickerDelegate: NSObject, UIDocumentPickerDelegate {
+        private let onPick: ([URL]) -> Void
+        private let onCancel: () -> Void
+
+        init(onPick: @escaping ([URL]) -> Void, onCancel: @escaping () -> Void) {
+            self.onPick = onPick
+            self.onCancel = onCancel
+        }
 
         func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
+            let handler = onPick
             controller.dismiss(animated: true)
-            parent.onPick(urls)
+            handler(urls)
         }
 
         func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentAt url: URL) {
@@ -45,8 +85,9 @@ struct DocumentPicker: UIViewControllerRepresentable {
         }
 
         func documentPickerWasCancelled(_ controller: UIDocumentPickerViewController) {
+            let handler = onCancel
             controller.dismiss(animated: true)
-            parent.onCancel()
+            handler()
         }
     }
 }

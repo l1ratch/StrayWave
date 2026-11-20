@@ -11,7 +11,6 @@ struct VideoLibraryView: View {
     @State private var sortOrder: MediaSortOrder = .dateAdded
     @State private var favoritesOnly = false
     @State private var showPlayer = false
-    @State private var showImporter = false
     @State private var showCreatePlaylist = false
     @State private var infoItem: MediaItem?
 
@@ -81,7 +80,9 @@ struct VideoLibraryView: View {
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
                         Button {
-                            showImporter = true
+                            FilePickerPresenter.present { urls in
+                                Task { await app.importer.importFromFiles(urls: urls) }
+                            }
                         } label: {
                             Label("Добавить из «Файлов»…", systemImage: "folder")
                         }
@@ -93,11 +94,6 @@ struct VideoLibraryView: View {
                     } label: {
                         Image(systemName: "plus")
                     }
-                }
-            }
-            .fullScreenCover(isPresented: $showImporter) {
-                DocumentPicker { urls in
-                    Task { await app.importer.importFromFiles(urls: urls) }
                 }
             }
             .sheet(isPresented: $showCreatePlaylist) {

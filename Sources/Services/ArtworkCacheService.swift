@@ -20,6 +20,16 @@ actor ArtworkCacheService {
 
     nonisolated static func fileName(for id: UUID) -> String { "\(id.uuidString).jpg" }
 
+    /// Синхронный доступ к папке кэша — нужен NowPlaying на главном потоке.
+    nonisolated static var artworkDirectory: URL {
+        let caches = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
+        return caches.appendingPathComponent("Artwork", isDirectory: true)
+    }
+
+    nonisolated static func localURL(for fileName: String) -> URL {
+        artworkDirectory.appendingPathComponent(fileName)
+    }
+
     func fileURL(for id: UUID) -> URL {
         directory.appendingPathComponent(Self.fileName(for: id))
     }
