@@ -100,14 +100,16 @@ actor LibraryScannerService {
         }
 
         for record in known where record.storageRaw == MediaStorageType.securityBookmark.rawValue {
+            // В KnownLibraryRecord нет title — логируем короткий ID записи.
+            let shortID = record.id.uuidString.prefix(8)
             guard let data = record.bookmarkData else {
-                DebugLog.shared.add("🗂 скан: bookmark без данных — помечен потерянным: \(record.title)")
+                DebugLog.shared.add("🗂 скан: bookmark без данных — помечен потерянным: \(shortID)")
                 outcome.lostBookmarkIDs.insert(record.id)
                 continue
             }
             var isStale = false
             guard let url = try? URL(resolvingBookmarkData: data, options: [], relativeTo: nil, bookmarkDataIsStale: &isStale) else {
-                DebugLog.shared.add("🗂 скан: bookmark не резолвится — потерян: \(record.title)")
+                DebugLog.shared.add("🗂 скан: bookmark не резолвится — потерян: \(shortID)")
                 outcome.lostBookmarkIDs.insert(record.id)
                 continue
             }
@@ -117,7 +119,7 @@ actor LibraryScannerService {
             let scoped = url.startAccessingSecurityScopedResource()
             defer { if scoped { url.stopAccessingSecurityScopedResource() } }
             guard FileManager.default.fileExists(atPath: url.path) else {
-                DebugLog.shared.add("🗂 скан: файла нет по пути bookmark — потерян: \(record.title) → \(url.path)")
+                DebugLog.shared.add("🗂 скан: файла нет по пути bookmark — потерян: \(shortID) → \(url.path)")
                 outcome.lostBookmarkIDs.insert(record.id)
                 continue
             }

@@ -37,8 +37,8 @@ final class DebugLog: @unchecked Sendable {
     }
 
     nonisolated func add(_ message: String) {
-        let line = "\(Self.stamp.string(from: .now))  \(message)"
         lock.lock()
+        let line = "\(Self.stamp.string(from: .now))  \(message)"
         storage.append(line)
         if storage.count > Self.maxEntries { storage.removeFirst(storage.count - Self.maxEntries) }
         appendToFileLocked(line)
