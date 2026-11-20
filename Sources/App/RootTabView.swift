@@ -46,8 +46,12 @@ struct RootTabView: View {
             guard selection == .search, app.searchQuery.isEmpty else { return }
             selection = lastNonSearchTab
         }
-        .fullScreenCover(isPresented: $showFullPlayer) {
+        // Лист на весь экран: в отличие от fullScreenCover здесь есть свайп
+        // вниз для закрытия, а zoom-переход от обложки работает так же.
+        .sheet(isPresented: $showFullPlayer) {
             FullScreenAudioPlayerView()
+                .presentationDetents([.large])
+                .presentationDragIndicator(.hidden)
                 .navigationTransition(.zoom(sourceID: Self.playerTransitionID, in: playerNamespace))
         }
         .alert(item: $importer.banner) { banner in

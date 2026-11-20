@@ -297,14 +297,15 @@ actor MediaMetadataReader {
         let text = withUnsafeBytes(of: &value) { buffer in
             String(bytes: buffer.prefix(4).filter { $0 != 0 }, encoding: .ascii) ?? ""
         }
-        let trimmed = text.trimmingCharacters(in: CharacterSet(charactersIn: "\0\x20"))
+        // Swift не допускает «\0» в литерале — только экранированный скаляр.
+        let trimmed = text.trimmingCharacters(in: CharacterSet(charactersIn: "\u{0000}\u{0020}"))
         guard !trimmed.isEmpty else { return "неизвестно" }
         let readable: [String: String] = [
             "mp4a": "AAC", ".mp3": "MP3", "aacs": "AAC", "alac": "ALAC", "fLaC": "FLAC",
             "ac-3": "AC-3", "ec-3": "E-AC-3", "lpcm": "PCM", "mlpa": "MLP",
             "avc1": "H.264", "avc3": "H.264", "hvc1": "HEVC", "hev1": "HEVC", "mp4v": "MPEG-4",
             "jpeg": "Motion JPEG", "apcn": "Apple ProRes 422", "ap4h": "ProRes 4444",
-            "pnyu": " uncompressed 4:2:2"
+            "pnyu": "Uncompressed 4:2:2"
         ]
         if let name = readable[trimmed] { return "\(name) (\(trimmed))" }
         return trimmed
