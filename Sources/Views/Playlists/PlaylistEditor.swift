@@ -53,10 +53,10 @@ struct PlaylistEditSheet: View {
     var body: some View {
         NavigationStack {
             Group {
-                if let draft {
+                if let current = draft {
                     PlaylistEditorForm(kind: playlist.kind, draft: Binding(
-                        get: { draft },
-                        set: { draft = $0; apply($0) }
+                        get: { current },
+                        set: { newValue in draft = newValue; apply(newValue) }
                     ), coverPick: $coverPick)
                 } else {
                     ProgressView()
