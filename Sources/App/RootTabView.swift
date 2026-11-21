@@ -13,6 +13,9 @@ struct RootTabView: View {
     @State private var selection: AppTab = .music
     @State private var lastNonSearchTab: AppTab = .music
     @State private var showFullPlayer = false
+    @Namespace private var playerNamespace
+
+    static let playerTransitionID = "fullscreen-audio-player"
 
     var body: some View {
         @Bindable var importer = importer
@@ -21,7 +24,7 @@ struct RootTabView: View {
         // с треком — живые данные.
         tabView
             .tabViewBottomAccessory {
-                MiniPlayerAccessoryView {
+                MiniPlayerAccessoryView(namespace: playerNamespace) {
                     showFullPlayer = true
                 }
             }
@@ -37,15 +40,15 @@ struct RootTabView: View {
             guard selection == .search, app.searchQuery.isEmpty else { return }
             selection = lastNonSearchTab
         }
-        // Лист на весь экран со свайпом вниз для закрытия. Zoom-переход
-        // (.navigationTransition(.zoom) + matchedTransitionSource в мини-
-        // плеере) УДАЛЁН: он выполняется ровно в момент старта
-        // воспроизведения и стабильно ронял Release-сборку на устройстве
-        // (SIGTRAP сразу после старта трека с обложкой).
+        // Лист на весь экран со свайпом вниз. Zoom-переход от обложки
+        // мини-плеера возвращён: краш 1.0.20–1.0.22 был вызван
+        // lazy-requestHandler обложки в nowPlayingInfo (подтверждено
+        // бисекцией и журналом), а не переходом.
         .sheet(isPresented: $showFullPlayer) {
             FullScreenAudioPlayerView()
                 .presentationDetents([.large])
                 .presentationDragIndicator(.hidden)
+                .navigationTransition(.zoom(sourceID: Self.playerTransitionID, in: playerNamespace))
         }
         // Собственный оверлей-баннер вместо .alert: системный алерт в
         // иерархии TabView мог не показываться, поэтому этапы импорта были

@@ -11,6 +11,9 @@ final class NowPlayingBridge {
 
     init(engine: MediaPlayerEngine) {
         self.engine = engine
+        // Без этого локскрин показывает заголовок, но кнопки play/pause
+        // неактивны, а тап по обложке уходит не в приложение.
+        UIApplication.shared.beginReceivingRemoteControlEvents()
         configureCommands()
     }
 
@@ -28,23 +31,43 @@ final class NowPlayingBridge {
         info[MPNowPlayingInfoPropertyElapsedPlaybackTime] = elapsed.isFinite ? max(0, elapsed) : 0
         info[MPNowPlayingInfoPropertyPlaybackRate] = engine.isPlaying ? engine.playbackSpeed : 0
 
+        center.playCommand.isEnabled = true
+        center.pauseCommand.isEnabled = true
+        center.togglePlayPauseCommand.isEnabled = true
+        center.nextTrackCommand.isEnabled = true
+        center.previousTrackCommand.isEnabled = true
+        center.changePlaybackPositionCommand.isEnabled = true
         center.skipForwardCommand.isEnabled = engine.supportsSkipCommands
         center.skipBackwardCommand.isEnabled = engine.supportsSkipCommands
 
-        // БИСЕКЦИЯ КРАША: обложка в nowPlayingInfo ОТКЛЮЧЕНА.
-        //
-        // Факты с устройства: трек без обложки играет, с обложкой — SIGTRAP
-        // сразу после «nowPlayingInfo применён». Всё, что логируется, проходит
-        // чисто; значит падает код, который система выполняет ПОСЛЕ присвоения
-        // словаря: MediaPlayer на своём потоке вызывает requestHandler
-        // MPMediaItemArtwork для отрисовки локскрина. Убираем artwork целиком:
-        // если краш исчезнет — виновник подтверждён эмпирически.
-        // Титул/исполнитель/альбом/длительность на локскрине остаются.
-        if item.artworkFileName != nil {
-            DebugLog.shared.add("🖼 nowPlaying: обложка есть, но отключена (бисекция краша)")
+        // Обложка на локскрине: eager-инициализатор MPMediaItemArtwork(image:),
+        // картинка фиксируется здесь, на главном потоке. Именно ленивый
+        // requestHandler (старый boundsSize:{...}) MediaPlayer вызывал на своём
+        // потоке и это давало SIGTRAP — теперь его нет.
+        if let fileName = item.artworkFileName, let image = eagerArtwork(fileName: fileName) {
+            info[MPMediaItemPropertyArtwork] = image
+            DebugLog.shared.add("🖼 nowPlaying: artwork (eager) применён")
         }
         infoCenter.nowPlayingInfo = info
         DebugLog.shared.add("🖼 nowPlaying: nowPlayingInfo применён")
+    }
+
+    /// Обложка для локскрина: синхронно с главного потока, ≤600 px, opaque RGB.
+    private func eagerArtwork(fileName: String) -> MPMediaItemArtwork? {
+        let url = ArtworkCacheService.localURL(for: fileName)
+        guard let loaded = UIImage(contentsOfFile: url.path),
+              loaded.size.width > 0, loaded.size.height > 0 else { return nil }
+        let maxSide: CGFloat = 600
+        let scale = min(1, maxSide / max(loaded.size.width, loaded.size.height))
+        let size = CGSize(width: max(1, loaded.size.width * scale), height: max(1, loaded.size.height * scale))
+        let format = UIGraphicsImageRendererFormat.default()
+        format.opaque = true
+        format.scale = 1
+        let normalized = UIGraphicsImageRenderer(size: size, format: format).image { _ in
+            loaded.draw(in: CGRect(origin: .zero, size: size))
+        }
+        guard normalized.size.width > 0, normalized.size.height > 0 else { return nil }
+        return MPMediaItemArtwork(image: normalized)
     }
 
     // MARK: - Remote commands

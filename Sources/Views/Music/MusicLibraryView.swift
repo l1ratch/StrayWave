@@ -1,8 +1,9 @@
 import SwiftUI
 import SwiftData
 
-/// Главная «Музыка» — медиатека в стиле Apple Music: чипы подразделов
-/// сверху, ниже «Недавно добавленные» альбомы сеткой и полоса плейлистов.
+/// «Музыка» — страница устроена как Медиатека Apple Music: крупный заголовок
+/// от левого края, строки категорий с иконками и шевронами, ниже — сетка
+/// «Недавно добавлено» (альбомы по дате добавления).
 struct MusicLibraryView: View {
     @Environment(AppEnvironment.self) private var app
 
@@ -73,40 +74,42 @@ struct MusicLibraryView: View {
     }
 
     private var content: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
-                // Чипы подразделов.
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 10) {
-                        ChipLink(title: "Плейлисты", value: MusicRoute.playlists)
-                        ChipLink(title: "Артисты", value: MusicRoute.artists)
-                        ChipLink(title: "Альбомы", value: MusicRoute.albums)
-                        ChipLink(title: "Песни", value: MusicRoute.songs)
-                        ChipLink(title: "Избранное", value: MusicRoute.favorites)
-                    }
-                    .padding(.horizontal, 20)
-                }
-
-                PlaylistStrip(kind: .audio)
-
-                // Недавно добавленные альбомы.
-                VStack(alignment: .leading, spacing: 10) {
-                    Text("Недавно добавленные")
-                        .font(.title3.weight(.bold))
-                        .padding(.horizontal, 20)
-                    LazyVGrid(columns: [GridItem(.flexible(), spacing: 14), GridItem(.flexible(), spacing: 14)], spacing: 18) {
-                        ForEach(albums) { group in
-                            NavigationLink(value: MusicRoute.album(group.id)) {
-                                AlbumCard(group: group, cover: group.coverID.flatMap { coverLookup[$0] })
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
-                    .padding(.horizontal, 20)
-                }
+        List {
+            // Строки категорий — как на скрине Apple Music.
+            Section {
+                categoryRow("Плейлисты", icon: "music.note.list", route: .playlists)
+                categoryRow("Артисты", icon: "music.mic", route: .artists)
+                categoryRow("Альбомы", icon: "square.stack", route: .albums)
+                categoryRow("Песни", icon: "music.note", route: .songs)
+                categoryRow("Избранное", icon: "heart", route: .favorites)
             }
-            .padding(.vertical, 12)
+
+            Section("Недавно добавлено") {
+                LazyVGrid(columns: [GridItem(.flexible(), spacing: 14), GridItem(.flexible(), spacing: 14)], spacing: 18) {
+                    ForEach(albums) { group in
+                        NavigationLink(value: MusicRoute.album(group.id)) {
+                            AlbumCard(group: group, cover: group.coverID.flatMap { coverLookup[$0] })
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.top, 4)
+            }
         }
+        .listStyle(.plain)
         .scrollIndicators(.hidden)
+    }
+
+    private func categoryRow(_ title: String, icon: String, route: MusicRoute) -> some View {
+        NavigationLink(value: route) {
+            Label {
+                Text(title)
+                    .font(.body)
+            } icon: {
+                Image(systemName: icon)
+                    .font(.system(size: 20))
+                    .foregroundStyle(.primary)
+            }
+        }
     }
 }

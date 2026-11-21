@@ -15,6 +15,10 @@ struct FullScreenAudioPlayerView: View {
     @State private var scrubberValue: Double?
     @State private var palette: [ArtworkPalette.RGB] = []
     @State private var artwork: UIImage?
+    // Свайп обложек (механика Cosmos): горизонтальное перетаскивание обложки
+    // = следующий/предыдущий трек с пружинным доводом.
+    @State private var artworkDrag: CGFloat = 0
+    @State private var swipeBusy = false
 
     private var currentItem: MediaItem? { engine.currentItem }
 
@@ -118,7 +122,54 @@ struct FullScreenAudioPlayerView: View {
         .shadow(color: .black.opacity(0.35), radius: 24, y: 14)
         .scaleEffect(engine.isPlaying ? 1.0 : 0.9)
         .animation(.spring(response: 0.45, dampingFraction: 0.75), value: engine.isPlaying)
+        .offset(x: artworkDrag)
+        .gesture(artworkDragGesture(size: size))
     }
+
+    // MARK: - Жест свайпа обложки
+
+    private func artworkDragGesture(size: CGFloat) -> some Gesture {
+        DragGesture(minimumDistance: 8)
+            .onChanged { value in
+                guard !swipeBusy, abs(value.translation.width) > abs(value.translation.height) else { return }
+                let raw = value.translation.width
+                let goingNext = raw < 0
+                let allowed = goingNext ? hasNext : hasPrevious
+                let clamped = allowed ? raw : raw * 0.16
+                artworkDrag = min(max(clamped, -size), size)
+            }
+            .onEnded { value in
+                guard !swipeBusy else { return }
+                let distance = abs(value.translation.width)
+                let projected = abs(value.predictedEndTranslation.width)
+                let shouldCommit = distance > size * 0.22 || projected > size * 0.34
+                guard shouldCommit else {
+                    withAnimation(.spring(response: 0.36, dampingFraction: 0.82)) { artworkDrag = 0 }
+                    return
+                }
+                let goingNext = value.translation.width < 0
+                guard (goingNext ? hasNext : hasPrevious) else {
+                    withAnimation(.spring(response: 0.36, dampingFraction: 0.82)) { artworkDrag = 0 }
+                    return
+                }
+                swipeBusy = true
+                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                withAnimation(.timingCurve(0.2, 0.8, 0.2, 1, duration: 0.24)) {
+                    artworkDrag = goingNext ? -size : size
+                }
+                Task { @MainActor in
+                    try? await Task.sleep(for: .milliseconds(240))
+                    if goingNext { engine.next() } else { engine.previous() }
+                    var transaction = Transaction()
+                    transaction.disablesAnimations = true
+                    withTransaction(transaction) { artworkDrag = 0 }
+                    swipeBusy = false
+                }
+            }
+    }
+
+    private var hasNext: Bool { engine.queueLogic.next() != nil || engine.queueLogic.repeatMode != .off }
+    private var hasPrevious: Bool { engine.queueLogic.previous() != nil || engine.displayedPosition > 3 }
 
     // MARK: - Заголовки
 
