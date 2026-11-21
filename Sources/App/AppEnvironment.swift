@@ -26,6 +26,9 @@ final class AppEnvironment {
         isConfigured = true
         modelContainer = container
         engine.configure(container: container, nowPlaying: NowPlayingBridge(engine: engine))
+        // Старт трека из библиотеки гасит радио (и наоборот — RadioService
+        // сам вызывает engine.pause()).
+        engine.onBeforeLibraryPlay = { RadioService.shared.stop() }
         await scanner.startWatching(documents: LibraryPathResolver.documentsDirectory) {
             Task { @MainActor in
                 await AppEnvironment.shared.rescanLibrary()

@@ -34,6 +34,17 @@ actor ArtworkCacheService {
         directory.appendingPathComponent(Self.fileName(for: id))
     }
 
+    /// Полный сброс кэша обложек (настройки). При следующем сканировании
+    /// обложки будут вырезаны заново.
+    func clearCache() {
+        let fm = FileManager.default
+        let names = (try? fm.contentsOfDirectory(atPath: directory.path)) ?? []
+        for name in names {
+            try? fm.removeItem(at: directory.appendingPathComponent(name))
+        }
+        DebugLog.shared.add("🧽 кэш обложек очищен (\(names.count) файлов)")
+    }
+
     func loadImage(fileName: String) -> CGImage? {
         let url = directory.appendingPathComponent(fileName)
         guard let source = CGImageSourceCreateWithURL(url as CFURL, nil) else { return nil }

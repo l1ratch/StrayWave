@@ -79,15 +79,23 @@ final class NowPlayingBridge {
             Task { @MainActor in self?.engine?.seek(to: positionEvent.positionTime) }
             return .success
         }
-        center.skipForwardCommand.preferredIntervals = [15]
-        center.skipBackwardCommand.preferredIntervals = [15]
+        let interval = AppConfig.skipInterval
+        center.skipForwardCommand.preferredIntervals = [NSNumber(value: interval)]
+        center.skipBackwardCommand.preferredIntervals = [NSNumber(value: interval)]
         center.skipForwardCommand.addTarget { [weak self] _ in
-            Task { @MainActor in self?.engine?.skip(by: 15) }
+            Task { @MainActor in self?.engine?.skip(by: AppConfig.skipInterval) }
             return .success
         }
         center.skipBackwardCommand.addTarget { [weak self] _ in
-            Task { @MainActor in self?.engine?.skip(by: -15) }
+            Task { @MainActor in self?.engine?.skip(by: -AppConfig.skipInterval) }
             return .success
         }
+    }
+
+    /// Переинтерфейсить интервалы после изменения настройки (без перезапуска).
+    func refreshSkipIntervals() {
+        let interval = AppConfig.skipInterval
+        center.skipForwardCommand.preferredIntervals = [NSNumber(value: interval)]
+        center.skipBackwardCommand.preferredIntervals = [NSNumber(value: interval)]
     }
 }

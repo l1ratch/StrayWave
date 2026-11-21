@@ -73,6 +73,7 @@ final class MediaPlayerEngine {
 
     func playItems(_ items: [MediaItem], startAt index: Int = 0) {
         guard !items.isEmpty else { return }
+        onBeforeLibraryPlay?()
         for item in items { knownItems[item.id] = item }
         let startID = items[min(max(index, 0), items.count - 1)].id
         queueLogic.replaceQueue(items.map(\.id), currentID: startID)
@@ -96,7 +97,17 @@ final class MediaPlayerEngine {
         if isPlaying { pause() } else { play() }
     }
 
+    /// Применить изменённый интервал перемотки к remote-командам.
+    func refreshRemoteSkipIntervals() {
+        nowPlaying?.refreshSkipIntervals()
+    }
+
+    /// Хук «библиотека начинает играть» — AppEnvironment вешает остановку радио,
+    /// чтобы два потока (станция и треки) не зазвучали одновременно.
+    var onBeforeLibraryPlay: (@MainActor () -> Void)?
+
     func play() {
+        onBeforeLibraryPlay?()
         guard player.currentItem != nil else {
             if !queueItems.isEmpty { rebuildPlayer(autoplay: true, resume: true) }
             return

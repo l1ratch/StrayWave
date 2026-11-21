@@ -16,4 +16,20 @@ enum AppConfig {
     /// (UserDefaults(suiteName:) / общий SwiftData store) — тогда же
     /// добавить com.apple.security.application-groups в entitlements.
     static let appGroupID = "group.c2fefdd0db2e255e.5"
+
+    // MARK: - Пользовательские настройки (UserDefaults)
+
+    private static let skipKey = "sw.skipInterval"
+
+    /// Интервал перемотки для remote-команд (сек). По умолчанию 15.
+    static var skipInterval: Int {
+        get {
+            let stored = UserDefaults.standard.object(forKey: skipKey) as? Int
+            return stored ?? 15
+        }
+        set { UserDefaults.standard.set(newValue, forKey: skipKey) }
+    }
+
+    /// Позиционировать ли AirPlay на видео-устройства в приоритете.
+    static var airPlayVideoPriority = true
 }
