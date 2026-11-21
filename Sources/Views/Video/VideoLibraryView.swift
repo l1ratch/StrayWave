@@ -1,14 +1,15 @@
 import SwiftUI
 import SwiftData
 
-/// Главная «Видео» — медиатека в стиле Apple Music: чипы подразделов,
-/// полоса плейлистов, сетка «Недавно добавленные».
+/// «Видео» — как «Музыка»: строки категорий сверху (Плейлисты / Избранное),
+/// внизу — сетка «Недавно добавленные».
 struct VideoLibraryView: View {
     @Environment(AppEnvironment.self) private var app
 
     @Query(filter: #Predicate<MediaItem> { $0.kindRaw == "video" })
     private var items: [MediaItem]
 
+    @State private var path = NavigationPath()
     @State private var showCreatePlaylist = false
 
     private var recent: [MediaItem] {
@@ -16,7 +17,7 @@ struct VideoLibraryView: View {
     }
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $path) {
             Group {
                 if items.isEmpty {
                     ContentUnavailableView {
@@ -30,6 +31,7 @@ struct VideoLibraryView: View {
             }
             .navigationTitle("Видео")
             .navigationBarTitleDisplayMode(.large)
+            .toolbarTitleDisplayMode(.largeInline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
@@ -68,28 +70,48 @@ struct VideoLibraryView: View {
 
     private var content: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 10) {
-                        ChipLink(title: "Плейлисты", value: VideoRoute.playlists)
-                        ChipLink(title: "Все видео", value: VideoRoute.all)
-                        ChipLink(title: "Избранное", value: VideoRoute.favorites)
-                    }
-                    .padding(.horizontal, 20)
-                }
+            VStack(alignment: .leading, spacing: 0) {
+                categoryRow("Плейлисты", icon: "music.note.list") { path.append(VideoRoute.playlists) }
+                divider
+                categoryRow("Избранное", icon: "heart") { path.append(VideoRoute.favorites) }
 
-                PlaylistStrip(kind: .video)
-
-                VStack(alignment: .leading, spacing: 10) {
+                if !recent.isEmpty {
                     Text("Недавно добавленные")
                         .font(.title3.weight(.bold))
                         .padding(.horizontal, 20)
+                        .padding(.top, 26)
+                        .padding(.bottom, 12)
                     VideoGrid(items: recent)
                         .padding(.horizontal, 20)
                 }
             }
-            .padding(.vertical, 12)
+            .padding(.vertical, 8)
         }
         .scrollIndicators(.hidden)
+    }
+
+    private func categoryRow(_ title: String, icon: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 16) {
+                Image(systemName: icon)
+                    .font(.system(size: 20))
+                    .frame(width: 36, alignment: .leading)
+                Text(title)
+                    .font(.body)
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.tertiary)
+            }
+            .padding(.horizontal, 20)
+            .padding(.vertical, 13)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var divider: some View {
+        Divider()
+            .padding(.leading, 72)
     }
 }

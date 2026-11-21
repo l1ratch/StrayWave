@@ -48,6 +48,12 @@ final class NowPlayingBridge {
             info[MPMediaItemPropertyArtwork] = image
             DebugLog.shared.add("🖼 nowPlaying: artwork (eager) применён")
         }
+        // Сердечко на локскрине (как звёздочка в Apple Music): рейтинг стиля
+        // heart + обработчик ratingCommand ниже.
+        info[MPMediaItemPropertyRating] = MPRating(
+            value: NSNumber(value: item.isFavorite ? 1 : 0),
+            ratingStyle: .heart
+        )
         infoCenter.nowPlayingInfo = info
         DebugLog.shared.add("🖼 nowPlaying: nowPlayingInfo применён")
     }
@@ -111,6 +117,16 @@ final class NowPlayingBridge {
         }
         center.skipBackwardCommand.addTarget { [weak self] _ in
             Task { @MainActor in self?.engine?.skip(by: -Double(AppConfig.skipInterval)) }
+            return .success
+        }
+
+        // Сердечко на локскрине: iOS рисует кнопку рейтинга, когда приложение
+        // поддерживает ratingCommand, а в nowPlayingInfo есть MPRating(.heart).
+        center.ratingCommand.isEnabled = true
+        center.ratingCommand.addTarget { [weak self] event in
+            guard let ratingEvent = event as? MPRatingCommandEvent else { return .noSuchContent }
+            let liked = (ratingEvent.rating.value as? NSNumber)?.int32Value == 1
+            Task { @MainActor in self?.engine?.setCurrentItemFavorite(liked) }
             return .success
         }
     }

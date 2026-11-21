@@ -23,11 +23,14 @@ struct FullScreenAudioPlayerView: View {
     private var currentItem: MediaItem? { engine.currentItem }
 
     var body: some View {
-        GeometryReader { geo in
-            ZStack {
-                background
+        // Фон — отдельным слоем (он ignoresSafeArea). Контент лежит внутри
+        // GeometryReader и фиксируется точным frame: раньше фоновый слой
+        // растягивал ZStack за safe area, и весь плеер «уезжал» за края.
+        ZStack {
+            background
 
-                if let item = currentItem {
+            if let item = currentItem {
+                GeometryReader { geo in
                     // ~430 pt занимают шапка, заголовки, перемотка, транспорт,
                     // громкость и нижний ряд — остальное отдаём обложке.
                     let artworkSize = max(160, min(geo.size.width - 56, geo.size.height - 430))
@@ -60,9 +63,10 @@ struct FullScreenAudioPlayerView: View {
                             .padding(.bottom, 6)
                     }
                     .padding(.horizontal, 28)
-                } else {
-                    ContentUnavailableView("Ничего не играет", systemImage: "music.note")
+                    .frame(width: geo.size.width, height: geo.size.height)
                 }
+            } else {
+                ContentUnavailableView("Ничего не играет", systemImage: "music.note")
             }
         }
         .task(id: currentItem?.artworkFileName) { await loadArtwork() }

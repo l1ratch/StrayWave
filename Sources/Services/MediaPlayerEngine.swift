@@ -109,6 +109,55 @@ final class MediaPlayerEngine {
     /// чтобы два потока (станция и треки) не зазвучали одновременно.
     var onBeforeLibraryPlay: (@MainActor () -> Void)?
 
+    // MARK: - Снимок очереди (продолжить после запуска приложения)
+
+    private static let queueIDsKey = "sw.queue.ids"
+    private static let queueIndexKey = "sw.queue.index"
+
+    func saveQueueSnapshot() {
+        UserDefaults.standard.set(queueLogic.playOrder.map(\.uuidString), forKey: Self.queueIDsKey)
+        UserDefaults.standard.set(queueLogic.currentIndex ?? 0, forKey: Self.queueIndexKey)
+    }
+
+    /// Восстанавливает последнюю очередь ПАУЗОЙ: мини-плеер показывает трек,
+    /// нажатие «играть» продолжает с сохранённой позиции. playCount не растёт.
+    func restoreLastQueue() {
+        guard modelContainer != nil else { return }
+        let ids = (UserDefaults.standard.stringArray(forKey: Self.queueIDsKey) ?? [])
+            .compactMap { UUID(uuidString: $0) }
+        guard !ids.isEmpty else { return }
+        let context = saveContext ?? ModelContext(modelContainer!)
+        let items = queueItemsByIDs(ids, context: context)
+        guard !items.isEmpty else { return }
+        let index = min(max(UserDefaults.standard.integer(forKey: Self.queueIndexKey), 0), items.count - 1)
+
+        for item in items { knownItems[item.id] = item }
+        queueLogic.replaceQueue(items.map(\.id), currentID: items[index].id)
+        syncQueueMirror()
+
+        player.pause()
+        player.removeAllItems()
+        for item in queueItems[index...] {
+            if let avItem = makePlayerItem(for: item) { player.insert(avItem, after: nil) }
+        }
+        releaseUnusedSecurityScopes()
+
+        let restored = queueItems[index]
+        isVideoMode = restored.kind == .video
+        displayedPosition = restored.resumePosition
+        isPlaying = false
+        nowPlaying?.update()
+        DebugLog.shared.add("⏮ восстановлена очередь: «\(restored.title)» (idx \(index)/\(queueItems.count))")
+    }
+
+    /// Избранное текущего трека из локскрина (звёздочка/сердечко).
+    func setCurrentItemFavorite(_ liked: Bool) {
+        guard let item = currentItem else { return }
+        item.isFavorite = liked
+        try? saveContext?.save()
+        nowPlaying?.update()
+    }
+
     func play() {
         onBeforeLibraryPlay?()
         guard player.currentItem != nil else {
@@ -117,6 +166,11 @@ final class MediaPlayerEngine {
         }
         configureAudioSession()
         try? AVAudioSession.sharedInstance().setActive(true)
+        // Продолжение «активного» трека: после восстановления очереди при
+        // запуске стартуем с сохранённой позиции (как в Apple Music).
+        if let item = currentItem, item.resumePosition > 0, player.currentTime().seconds < 1 {
+            player.seek(to: CMTime(seconds: item.resumePosition, preferredTimescale: 600))
+        }
         player.play()
         isPlaying = true
         nowPlaying?.update()
@@ -136,8 +190,8 @@ final class MediaPlayerEngine {
     }
 
     func previous() {
-        // Стандартное поведение: первые секунды — предыдущий трек, иначе в начало.
-        if player.currentTime().seconds > 5 {
+        // Дефолт Apple Music: первые ~3 секунды — предыдущий трек, иначе в начало.
+        if player.currentTime().seconds > 3 {
             seek(to: 0)
             return
         }
@@ -293,6 +347,7 @@ final class MediaPlayerEngine {
         nowPlaying?.update()
         DebugLog.shared.add("▶️ плеер: after nowPlaying.update()")
         try? saveContext?.save()
+        saveQueueSnapshot()
         DebugLog.shared.add("▶️ плеер: старт завершён (save ok)")
     }
 

@@ -84,8 +84,8 @@ struct RootTabView: View {
             Tab("Поиск", systemImage: "magnifyingglass", value: AppTab.search, role: .search) {
                 SearchLibraryView()
             }
-            Tab("Ещё", systemImage: "ellipsis.circle", value: AppTab.more) {
-                MoreView()
+            Tab("Настройки", systemImage: "gearshape", value: AppTab.more) {
+                SettingsRootView()
             }
         }
         .tabBarMinimizeBehavior(.onScrollDown)

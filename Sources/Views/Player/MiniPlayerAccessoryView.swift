@@ -92,13 +92,11 @@ struct MiniPlayerAccessoryView: View {
                         .font(.title3)
                         .foregroundStyle(.quinary)
                 }
-
-                Capsule()
-                    .fill(.quinary)
-                    .frame(height: 2)
             }
             .padding(.horizontal, 12)
-            .padding(.vertical, 6)
+            // Та же итоговая высота, что у живой карточки (с полоской
+            // прогресса): иначе аксессуар «прыгает» при старте/остановке.
+            .padding(.vertical, 9)
             .allowsHitTesting(false)
         }
     }

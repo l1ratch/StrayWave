@@ -1,25 +1,28 @@
 import SwiftUI
 import SwiftData
 
-/// «Музыка» — страница устроена как Медиатека Apple Music: крупный заголовок
-/// от левого края, строки категорий с иконками и шевронами, ниже — сетка
-/// «Недавно добавлено» (альбомы по дате добавления).
+/// «Музыка» — страница по образцу медиатеки Apple Music: заголовок в одну
+/// строку с кнопками, строки категорий (Плейлисты / Песни / Избранное),
+/// ниже — «Недавно добавлено» сеткой свежих треков.
+///
+/// Специально НЕ List: NavigationLink внутри List-секций получает системные
+/// шевроны и участвует в жесте «назад» как строка — отсюда были «стрелки у
+/// карточек» и «перебор всех альбомов при возврате».
 struct MusicLibraryView: View {
     @Environment(AppEnvironment.self) private var app
 
     @Query(filter: #Predicate<MediaItem> { $0.kindRaw == "audio" })
     private var items: [MediaItem]
 
+    @State private var path = NavigationPath()
     @State private var showCreatePlaylist = false
 
-    private var albums: [AlbumGroup] { LibraryGrouping.albums(from: items) }
-
-    private var coverLookup: [UUID: MediaItem] {
-        Dictionary(items.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+    private var recent: [MediaItem] {
+        Array(items.sorted { $0.dateAdded > $1.dateAdded }.prefix(24))
     }
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $path) {
             Group {
                 if items.isEmpty {
                     ContentUnavailableView {
@@ -33,6 +36,8 @@ struct MusicLibraryView: View {
             }
             .navigationTitle("Музыка")
             .navigationBarTitleDisplayMode(.large)
+            // iOS 26: кнопки в одну строку с крупным заголовком, как в Apple Music.
+            .toolbarTitleDisplayMode(.largeInline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
@@ -74,42 +79,80 @@ struct MusicLibraryView: View {
     }
 
     private var content: some View {
-        List {
-            // Строки категорий — как на скрине Apple Music.
-            Section {
-                categoryRow("Плейлисты", icon: "music.note.list", route: .playlists)
-                categoryRow("Артисты", icon: "music.mic", route: .artists)
-                categoryRow("Альбомы", icon: "square.stack", route: .albums)
-                categoryRow("Песни", icon: "music.note", route: .songs)
-                categoryRow("Избранное", icon: "heart", route: .favorites)
-            }
+        ScrollView {
+            VStack(alignment: .leading, spacing: 0) {
+                categoryRow("Плейлисты", icon: "music.note.list") { path.append(MusicRoute.playlists) }
+                divider
+                categoryRow("Песни", icon: "music.note") { path.append(MusicRoute.songs) }
+                divider
+                categoryRow("Избранное", icon: "heart") { path.append(MusicRoute.favorites) }
 
-            Section("Недавно добавлено") {
-                LazyVGrid(columns: [GridItem(.flexible(), spacing: 14), GridItem(.flexible(), spacing: 14)], spacing: 18) {
-                    ForEach(albums) { group in
-                        NavigationLink(value: MusicRoute.album(group.id)) {
-                            AlbumCard(group: group, cover: group.coverID.flatMap { coverLookup[$0] })
+                if !recent.isEmpty {
+                    Text("Недавно добавлено")
+                        .font(.title3.weight(.bold))
+                        .padding(.horizontal, 20)
+                        .padding(.top, 26)
+                        .padding(.bottom, 12)
+                    LazyVGrid(columns: [GridItem(.flexible(), spacing: 14), GridItem(.flexible(), spacing: 14)], spacing: 18) {
+                        ForEach(recent) { item in
+                            Button {
+                                app.engine.playItems(recent, startAt: recent.firstIndex(where: { $0.id == item.id }) ?? 0)
+                            } label: {
+                                TrackTile(item: item)
+                            }
+                            .buttonStyle(.plain)
                         }
-                        .buttonStyle(.plain)
                     }
+                    .padding(.horizontal, 20)
                 }
-                .padding(.top, 4)
             }
+            .padding(.vertical, 8)
         }
-        .listStyle(.plain)
         .scrollIndicators(.hidden)
     }
 
-    private func categoryRow(_ title: String, icon: String, route: MusicRoute) -> some View {
-        NavigationLink(value: route) {
-            Label {
-                Text(title)
-                    .font(.body)
-            } icon: {
+    private func categoryRow(_ title: String, icon: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 16) {
                 Image(systemName: icon)
                     .font(.system(size: 20))
-                    .foregroundStyle(.primary)
+                    .frame(width: 36, alignment: .leading)
+                Text(title)
+                    .font(.body)
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.tertiary)
             }
+            .padding(.horizontal, 20)
+            .padding(.vertical, 13)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var divider: some View {
+        Divider()
+            .padding(.leading, 72)
+    }
+}
+
+/// Квадратная плитка трека для «Недавно добавлено».
+struct TrackTile: View {
+    let item: MediaItem
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            ArtworkImage(item: item, size: nil)
+                .aspectRatio(1, contentMode: .fit)
+                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            Text(item.title)
+                .font(.subheadline.weight(.semibold))
+                .lineLimit(1)
+            Text(item.displayArtist)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
         }
     }
 }
