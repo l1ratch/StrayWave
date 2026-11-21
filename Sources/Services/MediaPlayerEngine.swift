@@ -254,8 +254,14 @@ final class MediaPlayerEngine {
 
         // В AVQueuePlayer помещаем только «текущий и далее»: прошедшие треки
         // не нужны, previous() перестраивает очередь при необходимости.
-        for item in queueItems[startIndex...] {
-            if let avItem = makePlayerItem(for: item) { player.insert(avItem, after: nil) }
+        // При явном свежем старте (не resume/не preservePosition) стартовый
+        // item пересоздаём: переиспользованный «доигравший» AVPlayerItem не
+        // запускается повторно (play() на нём молчит) — отсюда баг «второй
+        // раз не стартует».
+        let freshStart = !resume && !preservePosition
+        for (offset, item) in queueItems[startIndex...].enumerated() {
+            let forceFresh = freshStart && offset == 0
+            if let avItem = makePlayerItem(for: item, fresh: forceFresh) { player.insert(avItem, after: nil) }
         }
         releaseUnusedSecurityScopes()
         currentItemDidChange(resume: resume)
@@ -265,9 +271,7 @@ final class MediaPlayerEngine {
         } else if resume, let item = currentItem, item.resumePosition > 0 {
             player.seek(to: CMTime(seconds: item.resumePosition, preferredTimescale: 600))
         } else if !resume {
-            // Явный запуск: всегда с начала. Без этого «доигравший» до конца
-            // трек не стартовал повторно (item остаётся в состоянии .ended,
-            // а play() на нём ничего не делает).
+            // Явный запуск: всегда с начала.
             player.seek(to: .zero)
         }
         if autoplay { play() } else { nowPlaying?.update() }
@@ -292,15 +296,9 @@ final class MediaPlayerEngine {
         DebugLog.shared.add("▶️ плеер: старт завершён (save ok)")
     }
 
-    private func makePlayerItem(for item: MediaItem) -> AVPlayerItem? {
-        if let cached = itemCache[item.id] {
-            // Доигравший до конца item повторно не запускается — выбрасываем
-            // его из кэша и создаём заново.
-            if cached.status != .ended {
-                return cached
-            }
-            itemCache.removeValue(forKey: item.id)
-        }
+    private func makePlayerItem(for item: MediaItem, fresh: Bool = false) -> AVPlayerItem? {
+        if !fresh, let cached = itemCache[item.id] { return cached }
+        itemCache.removeValue(forKey: item.id)
         guard let url = resolvedURL(for: item) else {
             DebugLog.shared.add("❌ плеер: URL не резолвится: \(item.title)")
             return nil
