@@ -17,20 +17,14 @@ struct RootTabView: View {
     var body: some View {
         @Bindable var importer = importer
 
-        // Аксессуару нужен реально играющий трек: с пустым содержимым система
-        // всё равно рисует стеклянную панель над таб-баром.
-        Group {
-            if engine.currentItem != nil {
-                tabView
-                    .tabViewBottomAccessory {
-                        MiniPlayerAccessoryView {
-                            showFullPlayer = true
-                        }
-                    }
-            } else {
-                tabView
+        // Мини-плеер присутствует всегда: без трека — пустой шаблон-маска,
+        // с треком — живые данные.
+        tabView
+            .tabViewBottomAccessory {
+                MiniPlayerAccessoryView {
+                    showFullPlayer = true
+                }
             }
-        }
         .onChange(of: selection) { old, new in
             if new == .search {
                 if old != .search { lastNonSearchTab = old }

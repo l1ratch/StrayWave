@@ -77,7 +77,10 @@ final class MediaPlayerEngine {
         for item in items { knownItems[item.id] = item }
         let startID = items[min(max(index, 0), items.count - 1)].id
         queueLogic.replaceQueue(items.map(\.id), currentID: startID)
-        rebuildPlayer(autoplay: true, resume: true)
+        // Явный тап по треку = старт с начала. Позиция сохраняется только
+        // для «активного» трека (восстановление после перезапуска приложения
+        // идёт через отдельный путь play()).
+        rebuildPlayer(autoplay: true, resume: false)
     }
 
     func playSingle(_ item: MediaItem) {
@@ -254,6 +257,11 @@ final class MediaPlayerEngine {
             player.seek(to: preservedTime)
         } else if resume, let item = currentItem, item.resumePosition > 0 {
             player.seek(to: CMTime(seconds: item.resumePosition, preferredTimescale: 600))
+        } else if !resume {
+            // Явный запуск: всегда с начала. Без этого «доигравший» до конца
+            // трек не стартовал повторно (item остаётся в состоянии .ended,
+            // а play() на нём ничего не делает).
+            player.seek(to: .zero)
         }
         if autoplay { play() } else { nowPlaying?.update() }
     }
@@ -278,7 +286,14 @@ final class MediaPlayerEngine {
     }
 
     private func makePlayerItem(for item: MediaItem) -> AVPlayerItem? {
-        if let cached = itemCache[item.id] { return cached }
+        if let cached = itemCache[item.id] {
+            // Доигравший до конца item повторно не запускается — выбрасываем
+            // его из кэша и создаём заново.
+            if cached.status != .ended {
+                return cached
+            }
+            itemCache.removeValue(forKey: item.id)
+        }
         guard let url = resolvedURL(for: item) else {
             DebugLog.shared.add("❌ плеер: URL не резолвится: \(item.title)")
             return nil
