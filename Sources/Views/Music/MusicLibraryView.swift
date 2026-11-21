@@ -34,11 +34,18 @@ struct MusicLibraryView: View {
                     content
                 }
             }
-            .navigationTitle("Музыка")
-            .navigationBarTitleDisplayMode(.large)
-            // iOS 26: кнопки в одну строку с крупным заголовком, как в Apple Music.
-            .toolbarTitleDisplayMode(.largeInline)
+            // Заголовок в одну строку с кнопками: слот .principal — та же
+            // строка навбара; крупный шрифт даёт «медиатечный» вид.
+            .navigationTitle("")
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItem(placement: .principal) {
+                    HStack {
+                        Text("Музыка")
+                            .font(.largeTitle.weight(.bold))
+                        Spacer()
+                    }
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
                         Button {

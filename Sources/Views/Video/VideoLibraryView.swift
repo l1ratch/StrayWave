@@ -29,10 +29,16 @@ struct VideoLibraryView: View {
                     content
                 }
             }
-            .navigationTitle("Видео")
-            .navigationBarTitleDisplayMode(.large)
-            .toolbarTitleDisplayMode(.largeInline)
+            .navigationTitle("")
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItem(placement: .principal) {
+                    HStack {
+                        Text("Видео")
+                            .font(.largeTitle.weight(.bold))
+                        Spacer()
+                    }
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
                         Button {

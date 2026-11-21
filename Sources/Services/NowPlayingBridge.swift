@@ -48,12 +48,9 @@ final class NowPlayingBridge {
             info[MPMediaItemPropertyArtwork] = image
             DebugLog.shared.add("🖼 nowPlaying: artwork (eager) применён")
         }
-        // Сердечко на локскрине (как звёздочка в Apple Music): рейтинг стиля
-        // heart + обработчик ratingCommand ниже.
-        info[MPMediaItemPropertyRating] = MPRating(
-            value: NSNumber(value: item.isFavorite ? 1 : 0),
-            ratingStyle: .heart
-        )
+        // Сердечко на локскрине: MPMediaItemPropertyRating — число 0...1,
+        // стиль кнопки задаётся у ratingCommand (см. configureCommands).
+        info[MPMediaItemPropertyRating] = NSNumber(value: item.isFavorite ? 1.0 : 0.0)
         infoCenter.nowPlayingInfo = info
         DebugLog.shared.add("🖼 nowPlaying: nowPlayingInfo применён")
     }
@@ -121,13 +118,14 @@ final class NowPlayingBridge {
         }
 
         // Сердечко на локскрине: iOS рисует кнопку рейтинга, когда приложение
-        // поддерживает ratingCommand, а в nowPlayingInfo есть MPRating(.heart).
+        // поддерживает ratingCommand стиля .heart, а в nowPlayingInfo есть
+        // MPMediaItemPropertyRating (Float 0...1).
         center.ratingCommand.isEnabled = true
+        center.ratingCommand.ratingStyle = .heart
         center.ratingCommand.addTarget { [weak self] event in
-            guard let ratingEvent = event as? MPRatingCommandEvent else { return .noSuchContent }
-            let liked = (ratingEvent.rating.value as? NSNumber)?.int32Value == 1
+            let liked = event.rating >= 0.5
             Task { @MainActor in self?.engine?.setCurrentItemFavorite(liked) }
-            return .success
+            return .allowRatings
         }
     }
 
