@@ -48,8 +48,8 @@ final class NowPlayingBridge {
             info[MPMediaItemPropertyArtwork] = image
             DebugLog.shared.add("🖼 nowPlaying: artwork (eager) применён")
         }
-        // Сердечко на локскрине: MPMediaItemPropertyRating — число 0...1,
-        // стиль кнопки задаётся у ratingCommand (см. configureCommands).
+        // Звёздочка на локскрине: MPMediaItemPropertyRating — число 0...1;
+        // сама кнопка появляется, когда приложение поддерживает ratingCommand.
         info[MPMediaItemPropertyRating] = NSNumber(value: item.isFavorite ? 1.0 : 0.0)
         infoCenter.nowPlayingInfo = info
         DebugLog.shared.add("🖼 nowPlaying: nowPlayingInfo применён")
@@ -117,15 +117,15 @@ final class NowPlayingBridge {
             return .success
         }
 
-        // Сердечко на локскрине: iOS рисует кнопку рейтинга, когда приложение
-        // поддерживает ratingCommand стиля .heart, а в nowPlayingInfo есть
+        // Звёздочка на локскрине: iOS рисует кнопку рейтинга, когда приложение
+        // поддерживает ratingCommand, а в nowPlayingInfo есть
         // MPMediaItemPropertyRating (Float 0...1).
         center.ratingCommand.isEnabled = true
-        center.ratingCommand.ratingStyle = .heart
         center.ratingCommand.addTarget { [weak self] event in
-            let liked = event.rating >= 0.5
+            guard let ratingEvent = event as? MPRatingCommandEvent else { return .commandFailed }
+            let liked = ratingEvent.rating >= 0.5
             Task { @MainActor in self?.engine?.setCurrentItemFavorite(liked) }
-            return .allowRatings
+            return .success
         }
     }
 
