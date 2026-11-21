@@ -11,6 +11,7 @@ struct PlaylistDetailView: View {
 
     @State private var showEdit = false
     @State private var infoItem: MediaItem?
+    @Environment(\.dismiss) private var dismiss
 
     private var items: [MediaItem] {
         let byID = Dictionary(allItems.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
@@ -62,9 +63,19 @@ struct PlaylistDetailView: View {
             }
         }
         .listStyle(.plain)
+        // Системный индикатор прокрутки рисуется у самой кромки экрана и
+        // «прыгает» при подгрузке обложек — скрываем совсем.
+        .scrollIndicators(.hidden)
         .navigationTitle(playlist.name)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Menu {
+                    PlaylistDeleteButton(playlist: playlist) { dismiss() }
+                } label: {
+                    Image(systemName: "ellipsis")
+                }
+            }
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
                     showEdit = true

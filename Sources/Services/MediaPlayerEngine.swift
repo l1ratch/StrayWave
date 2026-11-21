@@ -23,6 +23,12 @@ final class MediaPlayerEngine {
         }
     }
 
+    /// Громкость воспроизведения (0...1). Системную outputVolume задать
+    /// нельзя — управляем уровнем плеера.
+    var volume: Float = 1.0 {
+        didSet { player.volume = volume }
+    }
+
     var currentItem: MediaItem? {
         guard let index = queueLogic.currentIndex, queueItems.indices.contains(index) else { return nil }
         return queueItems[index]

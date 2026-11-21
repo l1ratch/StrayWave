@@ -134,7 +134,22 @@ final class AppEnvironment {
         spotlight.remove(id: item.id)
         let context = item.modelContext
         context?.delete(item)
+        Self.purgePlaylistReferences(to: [item.id], in: context)
         try? context?.save()
+    }
+
+    /// Убирает id удалённых медиа из itemIDs всех плейлистов — иначе
+    /// счётчик «N треков» ссылается на несуществующие файлы.
+    static func purgePlaylistReferences(to deletedIDs: Set<UUID>, in context: ModelContext?) {
+        guard let context, !deletedIDs.isEmpty else { return }
+        let playlists = (try? context.fetch(FetchDescriptor<Playlist>())) ?? []
+        for playlist in playlists {
+            let before = playlist.itemIDs.count
+            playlist.itemIDs.removeAll { deletedIDs.contains($0) }
+            if playlist.itemIDs.count != before {
+                DebugLog.shared.add("🧹 плейлист «\(playlist.name)»: убрано \(before - playlist.itemIDs.count) ссылок")
+            }
+        }
     }
 
     private func itemFingerprint(_ item: MediaItem) -> FileFingerprint? {

@@ -29,6 +29,7 @@ struct MusicPlaylistsSection: View {
                             }
                         }
                     }
+                    .contextMenu { PlaylistDeleteButton(playlist: playlist) }
                 }
             }
         }
@@ -127,6 +128,7 @@ struct VideoPlaylistsStrip: View {
                                 }
                             }
                             .buttonStyle(.plain)
+                            .contextMenu { PlaylistDeleteButton(playlist: playlist) }
                         }
                     }
                     .padding(.horizontal)
@@ -161,6 +163,27 @@ struct AddToPlaylistMenu: View {
                     }
                 }
             }
+        }
+    }
+}
+
+// MARK: - Удаление плейлиста
+
+/// Красная кнопка удаления для contextMenu/меню тулбара. Сами файлы не
+/// трогаются — удаляется только список.
+struct PlaylistDeleteButton: View {
+    @Environment(\.modelContext) private var context
+    let playlist: Playlist
+    var onDeleted: () -> Void = {}
+
+    var body: some View {
+        Button(role: .destructive) {
+            context.delete(playlist)
+            try? context.save()
+            DebugLog.shared.add("🗑 плейлист «\(playlist.name)» удалён")
+            onDeleted()
+        } label: {
+            Label("Удалить плейлист", systemImage: "trash")
         }
     }
 }

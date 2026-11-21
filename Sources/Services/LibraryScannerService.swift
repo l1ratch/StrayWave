@@ -293,6 +293,10 @@ enum LibrarySync {
 
         DebugLog.shared.add("🗂 LibrarySync: добавлено \(outcome.items.count), удалено \(deletedIDs.count), потерянных bookmark \(outcome.lostBookmarkIDs.count)")
 
+        // Ссылки удалённых файлов вычищаем из всех плейлистов — иначе
+        // «N треков» остаётся навечно считаться по несуществующим id.
+        AppEnvironment.purgePlaylistReferences(to: Set(deletedIDs), in: context)
+
         try? context.save()
         return deletedIDs
     }

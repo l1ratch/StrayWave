@@ -48,6 +48,7 @@ struct SearchLibraryView: View {
                 }
             }
             .listStyle(.plain)
+            .scrollIndicators(.hidden)
             // Без титула: на вкладке поиска шапкой является сама строка поиска,
             // заголовок «Поиск» рисовался отдельной строкой ниже кнопок.
             .navigationTitle("")

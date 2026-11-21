@@ -2,10 +2,9 @@ import SwiftUI
 import UIKit
 import CoreGraphics
 
-/// Полноэкранный аудиоплеер: палитра обложки, стеклянные контролы, инфо-кнопка.
-///
-/// Один вертикальный стек: обложка занимает всё свободное место между шапкой
-/// и скраббером, поэтому больше не «уплывает» под полосу прокрутки.
+/// Полноэкранный аудиоплеер в стиле раскрытого Apple Music:
+/// обложка, заголовки от левого края, тонкий скраббер, крупные треугольники
+/// транспорта, ползунок громкости и нижний ряд иконок.
 struct FullScreenAudioPlayerView: View {
     @Environment(MediaPlayerEngine.self) private var engine
     @Environment(\.dismiss) private var dismiss
@@ -23,28 +22,34 @@ struct FullScreenAudioPlayerView: View {
             background
 
             if let item = currentItem {
-                VStack(spacing: 18) {
+                VStack(spacing: 16) {
                     Capsule()
                         .fill(.secondary.opacity(0.45))
                         .frame(width: 40, height: 5)
 
                     artworkBlock(item: item)
 
-                    Text(item.title)
-                        .font(.title3.weight(.semibold))
-                        .multilineTextAlignment(.center)
-                        .lineLimit(2)
-                    Text(item.displayArtist)
-                        .font(.body)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
+                    // Заголовки — от левого края, как в Apple Music.
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(item.title)
+                            .font(.title2.weight(.bold))
+                            .foregroundStyle(.white)
+                            .lineLimit(2)
+                        Text(item.displayArtist)
+                            .font(.body)
+                            .foregroundStyle(.white.opacity(0.65))
+                            .lineLimit(1)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
 
                     scrubber(item: item)
                     transport
+                    volumeRow
                     actionBar(item: item)
+                        .padding(.top, 4)
                 }
                 .padding(.horizontal, 28)
-                .padding(.bottom, 12)
+                .padding(.bottom, 10)
             } else {
                 ContentUnavailableView("Ничего не играет", systemImage: "music.note")
             }
@@ -98,11 +103,11 @@ struct FullScreenAudioPlayerView: View {
                     .resizable()
                     .scaledToFit()
             } else {
-                ArtworkImage(item: item, cornerRadius: 24)
+                ArtworkImage(item: item, cornerRadius: 14)
                     .scaledToFit()
             }
         }
-        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         .shadow(color: .black.opacity(0.35), radius: 24, y: 14)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         // Пружинное уменьшение на паузе.
@@ -118,48 +123,20 @@ struct FullScreenAudioPlayerView: View {
         let position = min(max(scrubberValue ?? engine.displayedPosition, 0), duration)
 
         VStack(spacing: 6) {
-            // СВОЙ скраббер вместо системного Slider: на iOS 26 системный
-            // слайдер в этом контексте рисовался сломанной линией, выходящей
-            // за края. Здесь геометрия явная: трек и бегунок физически не
-            // могут выйти за пределы контейнера.
-            GeometryReader { geo in
-                let width = geo.size.width
-                let fraction = CGFloat(position / duration)
-                let thumbDiameter: CGFloat = 18
-                let trackHeight: CGFloat = 6
-                ZStack(alignment: .leading) {
-                    Capsule()
-                        .fill(.white.opacity(0.25))
-                        .frame(height: trackHeight)
-                    Capsule()
-                        .fill(.white.opacity(0.85))
-                        .frame(
-                            width: max(fraction * width, trackHeight),
-                            height: trackHeight
-                        )
-                    Circle()
-                        .fill(.white)
-                        .frame(width: thumbDiameter, height: thumbDiameter)
-                        .shadow(color: .black.opacity(0.35), radius: 4, y: 2)
-                        .offset(x: min(max(fraction * width - thumbDiameter / 2, 0), width - thumbDiameter))
+            CapsuleSlider(
+                value: Binding(
+                    get: { scrubberValue ?? engine.displayedPosition },
+                    set: { scrubberValue = $0 }
+                ),
+                range: 0 ... duration,
+                onEditingChanged: { editing in
+                    if !editing, let value = scrubberValue {
+                        engine.seek(to: value)
+                        scrubberValue = nil
+                    }
                 }
-                .frame(maxHeight: .infinity)
-                .contentShape(Rectangle())
-                .gesture(
-                    DragGesture(minimumDistance: 0)
-                        .onChanged { value in
-                            let f = min(max(value.location.x / max(width, 1), 0), 1)
-                            scrubberValue = f * duration
-                        }
-                        .onEnded { value in
-                            let f = min(max(value.location.x / max(width, 1), 0), 1)
-                            let target = f * duration
-                            scrubberValue = nil
-                            engine.seek(to: target)
-                        }
-                )
-            }
-            .frame(height: 26)
+            )
+            .frame(height: 24)
 
             HStack {
                 Text(TimeFormatting.string(position))
@@ -167,36 +144,57 @@ struct FullScreenAudioPlayerView: View {
                 Text(TimeFormatting.remaining(item.duration, position))
             }
             .font(.caption.monospacedDigit())
-            .foregroundStyle(.secondary)
+            .foregroundStyle(.white.opacity(0.6))
         }
     }
-
-    // (Убран вычисляемый триггер scrubberCommit — хаптик скраббера отключён.)
 
     // MARK: - Транспорт
 
     private var transport: some View {
-        HStack(spacing: 44) {
+        HStack(spacing: 56) {
             Button { engine.previous() } label: {
-                Image(systemName: "backward.fill").font(.largeTitle)
+                Image(systemName: "backward.fill")
+                    .font(.system(size: 30))
             }
             Button { engine.togglePlayPause() } label: {
-                Image(systemName: engine.isPlaying ? "pause.circle.fill" : "play.circle.fill")
-                    .font(.system(size: 72))
+                Image(systemName: engine.isPlaying ? "pause.fill" : "play.fill")
+                    .font(.system(size: 56))
             }
             Button { engine.next() } label: {
-                Image(systemName: "forward.fill").font(.largeTitle)
+                Image(systemName: "forward.fill")
+                    .font(.system(size: 30))
             }
         }
         .foregroundStyle(.white)
-        .padding(.vertical, 6)
+        .padding(.vertical, 4)
     }
 
-    // MARK: - Нижняя панель
+    // MARK: - Громкость
+
+    private var volumeRow: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "speaker.fill")
+                .font(.caption)
+                .foregroundStyle(.white.opacity(0.6))
+            CapsuleSlider(
+                value: Binding(get: { Double(engine.volume) }, set: { engine.volume = Float($0) }),
+                range: 0 ... 1,
+                trackHeight: 4,
+                thumbSize: 10,
+                fillColor: .white.opacity(0.85)
+            )
+            .frame(height: 18)
+            Image(systemName: "speaker.wave.3.fill")
+                .font(.caption)
+                .foregroundStyle(.white.opacity(0.6))
+        }
+    }
+
+    // MARK: - Нижний ряд
 
     @ViewBuilder
     private func actionBar(item: MediaItem) -> some View {
-        HStack(spacing: 26) {
+        HStack(spacing: 30) {
             Button { showQueue = true } label: {
                 Image(systemName: "list.bullet")
             }
@@ -208,26 +206,21 @@ struct FullScreenAudioPlayerView: View {
                 }
             } label: {
                 Text(String(format: "%gx", Double(engine.playbackSpeed)))
-                    .font(.callout.monospacedDigit())
+                    .font(.body.monospacedDigit().weight(.medium))
             }
             Button { item.isFavorite.toggle() } label: {
                 Image(systemName: item.isFavorite ? "heart.fill" : "heart")
-                    .foregroundStyle(item.isFavorite ? AnyShapeStyle(.pink) : AnyShapeStyle(.white))
+                    .foregroundStyle(item.isFavorite ? AnyShapeStyle(.pink) : AnyShapeStyle(.white.opacity(0.9)))
             }
             Button { showInfo = true } label: {
                 Image(systemName: "info.circle")
             }
             AirPlayRoutePicker(prioritizesVideoDevices: item.kind == .video)
-                .frame(width: 34, height: 34)
+                .frame(width: 30, height: 30)
         }
         .font(.title3)
-        .foregroundStyle(.white)
-        .padding(.horizontal, 18)
-        .padding(.vertical, 12)
-        // Системный материал вместо самопальной «стеклянности»: сам гаснет,
-        // когда в системе включено «Уменьшить прозрачность».
-        .background(.regularMaterial, in: Capsule())
-        .overlay(Capsule().strokeBorder(.white.opacity(0.12), lineWidth: 1))
+        .foregroundStyle(.white.opacity(0.9))
+        .frame(maxWidth: .infinity)
     }
 
     private var speedBinding: Binding<Float> {
