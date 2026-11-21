@@ -5,7 +5,8 @@ import SwiftData
 struct PlaylistArtwork: View {
     let playlist: Playlist
     let items: [MediaItem]
-    var size: CGFloat = 48
+    /// nil — растягиваться по геометрии родителя (сетки).
+    var size: CGFloat? = 48
     var cornerRadius: CGFloat = 8
 
     var body: some View {
@@ -25,12 +26,13 @@ struct PlaylistArtwork: View {
                         startPoint: .topLeading, endPoint: .bottomTrailing
                     )
                     Image(systemName: playlist.kind == .video ? "film.fill" : "music.note.list")
-                        .font(.system(size: size * 0.4))
+                        .font(.system(size: (size ?? 80) * 0.4))
                         .foregroundStyle(.white.opacity(0.9))
                 }
             }
         }
         .frame(width: size, height: size)
+        .aspectRatio(size == nil ? 1 : nil, contentMode: .fit)
         .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
     }
 }
