@@ -179,6 +179,13 @@ final class MediaPlayerEngine {
         rebuildPlayer(autoplay: isPlaying, preservePosition: true)
     }
 
+    /// off → один трек → вся очередь → off (для кнопки в плеере).
+    func cycleRepeatMode() {
+        let modes = PlaybackQueueLogic.RepeatMode.allCases
+        let index = modes.firstIndex(of: queueLogic.repeatMode) ?? 0
+        setRepeatMode(modes[(index + 1) % modes.count])
+    }
+
     // MARK: - Очередь
 
     func playNext(_ item: MediaItem) {

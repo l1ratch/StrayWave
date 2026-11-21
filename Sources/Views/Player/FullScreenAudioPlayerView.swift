@@ -2,9 +2,10 @@ import SwiftUI
 import UIKit
 import CoreGraphics
 
-/// Полноэкранный аудиоплеер в стиле раскрытого Apple Music:
-/// обложка, заголовки от левого края, тонкий скраббер, крупные треугольники
-/// транспорта, ползунок громкости и нижний ряд иконок.
+/// Полноэкранный аудиоплеер. Макет — по образцу Cosmos Music Player:
+/// размеры считаются от геометрии экрана (обложка получает высоту, которую
+/// не заняли контролы), транспорт — «перемешка · назад · играть · вперёд ·
+/// повтор», скраббер без бегунка, снизу громкость и ряд иконок.
 struct FullScreenAudioPlayerView: View {
     @Environment(MediaPlayerEngine.self) private var engine
     @Environment(\.dismiss) private var dismiss
@@ -18,40 +19,46 @@ struct FullScreenAudioPlayerView: View {
     private var currentItem: MediaItem? { engine.currentItem }
 
     var body: some View {
-        ZStack {
-            background
+        GeometryReader { geo in
+            ZStack {
+                background
 
-            if let item = currentItem {
-                VStack(spacing: 16) {
-                    Capsule()
-                        .fill(.secondary.opacity(0.45))
-                        .frame(width: 40, height: 5)
+                if let item = currentItem {
+                    // ~430 pt занимают шапка, заголовки, перемотка, транспорт,
+                    // громкость и нижний ряд — остальное отдаём обложке.
+                    let artworkSize = max(160, min(geo.size.width - 56, geo.size.height - 430))
 
-                    artworkBlock(item: item)
+                    VStack(spacing: 0) {
+                        Capsule()
+                            .fill(.secondary.opacity(0.45))
+                            .frame(width: 40, height: 5)
+                            .padding(.top, 10)
 
-                    // Заголовки — от левого края, как в Apple Music.
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(item.title)
-                            .font(.title2.weight(.bold))
-                            .foregroundStyle(.white)
-                            .lineLimit(2)
-                        Text(item.displayArtist)
-                            .font(.body)
-                            .foregroundStyle(.white.opacity(0.65))
-                            .lineLimit(1)
+                        Spacer(minLength: 8)
+
+                        artworkBlock(size: artworkSize, item: item)
+
+                        Spacer(minLength: 12)
+
+                        titleRow(item: item)
+                            .padding(.bottom, 14)
+
+                        scrubber(item: item)
+                            .padding(.bottom, 10)
+
+                        transport
+                            .padding(.bottom, 14)
+
+                        volumeRow
+                            .padding(.bottom, 10)
+
+                        actionBar(item: item)
+                            .padding(.bottom, 6)
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-
-                    scrubber(item: item)
-                    transport
-                    volumeRow
-                    actionBar(item: item)
-                        .padding(.top, 4)
+                    .padding(.horizontal, 28)
+                } else {
+                    ContentUnavailableView("Ничего не играет", systemImage: "music.note")
                 }
-                .padding(.horizontal, 28)
-                .padding(.bottom, 10)
-            } else {
-                ContentUnavailableView("Ничего не играет", systemImage: "music.note")
             }
         }
         .task(id: currentItem?.artworkFileName) { await loadArtwork() }
@@ -96,26 +103,40 @@ struct FullScreenAudioPlayerView: View {
     // MARK: - Обложка
 
     @ViewBuilder
-    private func artworkBlock(item: MediaItem) -> some View {
+    private func artworkBlock(size: CGFloat, item: MediaItem) -> some View {
         Group {
             if let artwork {
                 Image(uiImage: artwork)
                     .resizable()
-                    .scaledToFit()
+                    .scaledToFill()
             } else {
-                ArtworkImage(item: item, cornerRadius: 14)
-                    .scaledToFit()
+                ArtworkImage(item: item, size: nil)
             }
         }
+        .frame(width: size, height: size)
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         .shadow(color: .black.opacity(0.35), radius: 24, y: 14)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        // Пружинное уменьшение на паузе.
-        .scaleEffect(engine.isPlaying ? 1.0 : 0.86)
+        .scaleEffect(engine.isPlaying ? 1.0 : 0.9)
         .animation(.spring(response: 0.45, dampingFraction: 0.75), value: engine.isPlaying)
     }
 
-    // MARK: - Скраббер
+    // MARK: - Заголовки
+
+    private func titleRow(item: MediaItem) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(item.title)
+                .font(.title3.weight(.bold))
+                .foregroundStyle(.white)
+                .lineLimit(2)
+            Text(item.displayArtist)
+                .font(.subheadline)
+                .foregroundStyle(.white.opacity(0.65))
+                .lineLimit(1)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    // MARK: - Перемотка
 
     @ViewBuilder
     private func scrubber(item: MediaItem) -> some View {
@@ -136,14 +157,14 @@ struct FullScreenAudioPlayerView: View {
                     }
                 }
             )
-            .frame(height: 24)
+            .frame(height: 20)
 
             HStack {
                 Text(TimeFormatting.string(position))
                 Spacer()
                 Text(TimeFormatting.remaining(item.duration, position))
             }
-            .font(.caption.monospacedDigit())
+            .font(.caption.weight(.medium).monospacedDigit())
             .foregroundStyle(.white.opacity(0.6))
         }
     }
@@ -151,22 +172,75 @@ struct FullScreenAudioPlayerView: View {
     // MARK: - Транспорт
 
     private var transport: some View {
-        HStack(spacing: 56) {
-            Button { engine.previous() } label: {
-                Image(systemName: "backward.fill")
-                    .font(.system(size: 30))
+        HStack(spacing: 0) {
+            toggleButton(
+                systemImage: "shuffle",
+                isOn: engine.queueLogic.isShuffled,
+                label: "Перемешать"
+            ) {
+                engine.toggleShuffle()
             }
-            Button { engine.togglePlayPause() } label: {
-                Image(systemName: engine.isPlaying ? "pause.fill" : "play.fill")
-                    .font(.system(size: 56))
+
+            Spacer(minLength: 0)
+
+            transportButton(systemImage: "backward.fill", size: 34, label: "Предыдущий") {
+                engine.previous()
             }
-            Button { engine.next() } label: {
-                Image(systemName: "forward.fill")
-                    .font(.system(size: 30))
+
+            Spacer(minLength: 0)
+
+            transportButton(
+                systemImage: engine.isPlaying ? "pause.fill" : "play.fill",
+                size: 46,
+                label: engine.isPlaying ? "Пауза" : "Играть"
+            ) {
+                engine.togglePlayPause()
+            }
+
+            Spacer(minLength: 0)
+
+            transportButton(systemImage: "forward.fill", size: 34, label: "Следующий") {
+                engine.next()
+            }
+
+            Spacer(minLength: 0)
+
+            toggleButton(
+                systemImage: engine.queueLogic.repeatMode.systemImage,
+                isOn: engine.queueLogic.repeatMode != .off,
+                label: "Повтор"
+            ) {
+                engine.cycleRepeatMode()
             }
         }
         .foregroundStyle(.white)
-        .padding(.vertical, 4)
+    }
+
+    private func transportButton(systemImage: String, size: CGFloat, label: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: systemImage)
+                .font(.system(size: size))
+                .contentTransition(.symbolEffect(.replace))
+                .frame(width: max(size + 22, 60), height: max(size + 22, 60))
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(label)
+    }
+
+    /// Перемешка/повтор: включённое состояние — залитый кружок.
+    private func toggleButton(systemImage: String, isOn: Bool, label: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: systemImage)
+                .font(.body.weight(.semibold))
+                .foregroundStyle(isOn ? Color.black : Color.white.opacity(0.7))
+                .frame(width: 44, height: 44)
+                .background(isOn ? Color.white.opacity(0.9) : Color.clear, in: Circle())
+                .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(label)
+        .accessibilityValue(isOn ? "вкл" : "выкл")
     }
 
     // MARK: - Громкость
@@ -179,11 +253,11 @@ struct FullScreenAudioPlayerView: View {
             CapsuleSlider(
                 value: Binding(get: { Double(engine.volume) }, set: { engine.volume = Float($0) }),
                 range: 0 ... 1,
-                trackHeight: 4,
-                thumbSize: 10,
+                idleHeight: 4,
+                activeHeight: 7,
                 fillColor: .white.opacity(0.85)
             )
-            .frame(height: 18)
+            .frame(height: 16)
             Image(systemName: "speaker.wave.3.fill")
                 .font(.caption)
                 .foregroundStyle(.white.opacity(0.6))
@@ -194,10 +268,16 @@ struct FullScreenAudioPlayerView: View {
 
     @ViewBuilder
     private func actionBar(item: MediaItem) -> some View {
-        HStack(spacing: 30) {
+        HStack(spacing: 0) {
             Button { showQueue = true } label: {
                 Image(systemName: "list.bullet")
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
             }
+            .accessibilityLabel("Очередь")
+
+            Spacer()
+
             Menu {
                 Picker("Скорость", selection: speedBinding) {
                     ForEach(MediaPlayerEngine.availableSpeeds, id: \.self) { speed in
@@ -207,14 +287,28 @@ struct FullScreenAudioPlayerView: View {
             } label: {
                 Text(String(format: "%gx", Double(engine.playbackSpeed)))
                     .font(.body.monospacedDigit().weight(.medium))
+                    .frame(width: 44, height: 44)
             }
+
+            Spacer()
+
             Button { item.isFavorite.toggle() } label: {
                 Image(systemName: item.isFavorite ? "heart.fill" : "heart")
                     .foregroundStyle(item.isFavorite ? AnyShapeStyle(.pink) : AnyShapeStyle(.white.opacity(0.9)))
+                    .frame(width: 44, height: 44)
             }
+            .accessibilityLabel("Избранное")
+
+            Spacer()
+
             Button { showInfo = true } label: {
                 Image(systemName: "info.circle")
+                    .frame(width: 44, height: 44)
             }
+            .accessibilityLabel("Информация")
+
+            Spacer()
+
             AirPlayRoutePicker(prioritizesVideoDevices: item.kind == .video)
                 .frame(width: 30, height: 30)
         }
