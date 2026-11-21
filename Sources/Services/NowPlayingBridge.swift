@@ -83,11 +83,11 @@ final class NowPlayingBridge {
         center.skipForwardCommand.preferredIntervals = [NSNumber(value: interval)]
         center.skipBackwardCommand.preferredIntervals = [NSNumber(value: interval)]
         center.skipForwardCommand.addTarget { [weak self] _ in
-            Task { @MainActor in self?.engine?.skip(by: AppConfig.skipInterval) }
+            Task { @MainActor in self?.engine?.skip(by: Double(AppConfig.skipInterval)) }
             return .success
         }
         center.skipBackwardCommand.addTarget { [weak self] _ in
-            Task { @MainActor in self?.engine?.skip(by: -AppConfig.skipInterval) }
+            Task { @MainActor in self?.engine?.skip(by: -Double(AppConfig.skipInterval)) }
             return .success
         }
     }

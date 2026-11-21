@@ -29,7 +29,4 @@ enum AppConfig {
         }
         set { UserDefaults.standard.set(newValue, forKey: skipKey) }
     }
-
-    /// Позиционировать ли AirPlay на видео-устройства в приоритете.
-    static var airPlayVideoPriority = true
 }
