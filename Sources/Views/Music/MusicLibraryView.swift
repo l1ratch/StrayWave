@@ -2,8 +2,8 @@ import SwiftUI
 import SwiftData
 
 /// «Музыка» — страница по образцу медиатеки Apple Music: заголовок в одну
-/// строку с кнопками, строки категорий (Плейлисты / Песни / Избранное),
-/// ниже — «Недавно добавлено» сеткой свежих треков.
+/// строку с кнопками, строки «Все треки» / «Избранное», ниже — сетка
+/// плейлистов с закреплением (pin) и перетаскиванием порядка.
 ///
 /// Специально НЕ List: NavigationLink внутри List-секций получает системные
 /// шевроны и участвует в жесте «назад» как строка — отсюда были «стрелки у
@@ -14,11 +14,13 @@ struct MusicLibraryView: View {
     @Query(filter: #Predicate<MediaItem> { $0.kindRaw == "audio" })
     private var items: [MediaItem]
 
+    @Query private var playlists: [Playlist]
+
     @State private var path = NavigationPath()
     @State private var showCreatePlaylist = false
 
-    private var recent: [MediaItem] {
-        Array(items.sorted { $0.dateAdded > $1.dateAdded }.prefix(24))
+    private var audioPlaylists: [Playlist] {
+        PlaylistOrdering.sorted(playlists, kind: .audio)
     }
 
     var body: some View {
@@ -88,29 +90,18 @@ struct MusicLibraryView: View {
     private var content: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
-                categoryRow("Плейлисты", icon: "music.note.list") { path.append(MusicRoute.playlists) }
-                divider
-                categoryRow("Песни", icon: "music.note") { path.append(MusicRoute.songs) }
+                categoryRow("Все треки", icon: "music.note") { path.append(MusicRoute.songs) }
                 divider
                 categoryRow("Избранное", icon: "heart") { path.append(MusicRoute.favorites) }
 
-                if !recent.isEmpty {
-                    Text("Недавно добавлено")
+                if !audioPlaylists.isEmpty {
+                    Text("Плейлисты")
                         .font(.title3.weight(.bold))
                         .padding(.horizontal, 20)
                         .padding(.top, 26)
                         .padding(.bottom, 12)
-                    LazyVGrid(columns: [GridItem(.flexible(), spacing: 14), GridItem(.flexible(), spacing: 14)], spacing: 18) {
-                        ForEach(recent) { item in
-                            Button {
-                                app.engine.playItems(recent, startAt: recent.firstIndex(where: { $0.id == item.id }) ?? 0)
-                            } label: {
-                                TrackTile(item: item)
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
-                    .padding(.horizontal, 20)
+                    PlaylistGrid(kind: .audio)
+                        .padding(.horizontal, 20)
                 }
             }
             .padding(.vertical, 8)

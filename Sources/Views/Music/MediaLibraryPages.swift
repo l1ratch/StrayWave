@@ -133,7 +133,10 @@ struct PlaylistStrip: View {
                                 }
                             }
                             .buttonStyle(.plain)
-                            .contextMenu { PlaylistDeleteButton(playlist: playlist) }
+                            .contextMenu {
+                                PlaylistPinButton(playlist: playlist)
+                                PlaylistDeleteButton(playlist: playlist)
+                            }
                         }
                     }
                     .padding(.horizontal, 20)
@@ -231,7 +234,7 @@ struct SongsPage: View {
                 .scrollIndicators(.hidden)
             }
         }
-        .navigationTitle(kind == .video ? "Все видео" : "Песни")
+        .navigationTitle(kind == .video ? "Все видео" : "Все треки")
         .navigationBarTitleDisplayMode(.inline)
     }
 }

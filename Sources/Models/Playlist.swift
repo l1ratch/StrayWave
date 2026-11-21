@@ -16,6 +16,10 @@ final class Playlist {
     /// Пользовательская обложка; externalStorage — картинка живёт файлом,
     /// а не внутри sqlite-строки.
     @Attribute(.externalStorage) var coverImageData: Data?
+    /// Закреплённый плейлист всегда первый в списке.
+    var isPinned: Bool = false
+    /// Ручной порядок перетаскиванием (меньше — выше).
+    var sortIndex: Int = 0
 
     init(
         id: UUID = UUID(),

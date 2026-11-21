@@ -2,10 +2,12 @@ import SwiftUI
 import UIKit
 import CoreGraphics
 
-/// Полноэкранный аудиоплеер. Макет — по образцу Cosmos Music Player:
-/// размеры считаются от геометрии экрана (обложка получает высоту, которую
-/// не заняли контролы), транспорт — «перемешка · назад · играть · вперёд ·
-/// повтор», скраббер без бегунка, снизу громкость и ряд иконок.
+/// Полноэкранный аудиоплеер.
+///
+/// Геометрия детерминированная: без корневого GeometryReader и без
+/// zoom-перехода — именно они в 1.0.29–1.0.30 измеряли контент в границах
+/// источника перехода и «уводили» всё за правый край. Обложка — квадрат до
+/// 340 pt, остальное в обычном VStack с отступами.
 struct FullScreenAudioPlayerView: View {
     @Environment(MediaPlayerEngine.self) private var engine
     @Environment(\.dismiss) private var dismiss
@@ -15,56 +17,47 @@ struct FullScreenAudioPlayerView: View {
     @State private var scrubberValue: Double?
     @State private var palette: [ArtworkPalette.RGB] = []
     @State private var artwork: UIImage?
-    // Свайп обложек (механика Cosmos): горизонтальное перетаскивание обложки
-    // = следующий/предыдущий трек с пружинным доводом.
+
+    // Свайп обложек (механика Cosmos/Apple Music).
     @State private var artworkDrag: CGFloat = 0
     @State private var swipeBusy = false
+    private let pageDistance: CGFloat = 300
 
     private var currentItem: MediaItem? { engine.currentItem }
 
     var body: some View {
-        // Фон — отдельным слоем (он ignoresSafeArea). Контент лежит внутри
-        // GeometryReader и фиксируется точным frame: раньше фоновый слой
-        // растягивал ZStack за safe area, и весь плеер «уезжал» за края.
         ZStack {
             background
 
             if let item = currentItem {
-                GeometryReader { geo in
-                    // ~430 pt занимают шапка, заголовки, перемотка, транспорт,
-                    // громкость и нижний ряд — остальное отдаём обложке.
-                    let artworkSize = max(160, min(geo.size.width - 56, geo.size.height - 430))
+                VStack(spacing: 0) {
+                    Capsule()
+                        .fill(.secondary.opacity(0.45))
+                        .frame(width: 40, height: 5)
+                        .padding(.top, 10)
 
-                    VStack(spacing: 0) {
-                        Capsule()
-                            .fill(.secondary.opacity(0.45))
-                            .frame(width: 40, height: 5)
-                            .padding(.top, 10)
+                    Spacer(minLength: 12)
 
-                        Spacer(minLength: 8)
+                    artworkBlock(item: item)
 
-                        artworkBlock(size: artworkSize, item: item)
+                    Spacer(minLength: 16)
 
-                        Spacer(minLength: 12)
+                    titleRow(item: item)
+                        .padding(.bottom, 14)
 
-                        titleRow(item: item)
-                            .padding(.bottom, 14)
+                    scrubber(item: item)
+                        .padding(.bottom, 10)
 
-                        scrubber(item: item)
-                            .padding(.bottom, 10)
+                    transport
+                        .padding(.bottom, 14)
 
-                        transport
-                            .padding(.bottom, 14)
+                    volumeRow
+                        .padding(.bottom, 10)
 
-                        volumeRow
-                            .padding(.bottom, 10)
-
-                        actionBar(item: item)
-                            .padding(.bottom, 6)
-                    }
-                    .padding(.horizontal, 28)
-                    .frame(width: geo.size.width, height: geo.size.height)
+                    actionBar(item: item)
+                        .padding(.bottom, 8)
                 }
+                .padding(.horizontal, 28)
             } else {
                 ContentUnavailableView("Ничего не играет", systemImage: "music.note")
             }
@@ -111,7 +104,7 @@ struct FullScreenAudioPlayerView: View {
     // MARK: - Обложка
 
     @ViewBuilder
-    private func artworkBlock(size: CGFloat, item: MediaItem) -> some View {
+    private func artworkBlock(item: MediaItem) -> some View {
         Group {
             if let artwork {
                 Image(uiImage: artwork)
@@ -121,18 +114,17 @@ struct FullScreenAudioPlayerView: View {
                 ArtworkImage(item: item, size: nil)
             }
         }
-        .frame(width: size, height: size)
+        .aspectRatio(1, contentMode: .fit)
+        .frame(maxWidth: 340)
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         .shadow(color: .black.opacity(0.35), radius: 24, y: 14)
         .scaleEffect(engine.isPlaying ? 1.0 : 0.9)
         .animation(.spring(response: 0.45, dampingFraction: 0.75), value: engine.isPlaying)
         .offset(x: artworkDrag)
-        .gesture(artworkDragGesture(size: size))
+        .gesture(artworkDragGesture())
     }
 
-    // MARK: - Жест свайпа обложки
-
-    private func artworkDragGesture(size: CGFloat) -> some Gesture {
+    private func artworkDragGesture() -> some Gesture {
         DragGesture(minimumDistance: 8)
             .onChanged { value in
                 guard !swipeBusy, abs(value.translation.width) > abs(value.translation.height) else { return }
@@ -140,26 +132,22 @@ struct FullScreenAudioPlayerView: View {
                 let goingNext = raw < 0
                 let allowed = goingNext ? hasNext : hasPrevious
                 let clamped = allowed ? raw : raw * 0.16
-                artworkDrag = min(max(clamped, -size), size)
+                artworkDrag = min(max(clamped, -pageDistance), pageDistance)
             }
             .onEnded { value in
                 guard !swipeBusy else { return }
                 let distance = abs(value.translation.width)
                 let projected = abs(value.predictedEndTranslation.width)
-                let shouldCommit = distance > size * 0.22 || projected > size * 0.34
-                guard shouldCommit else {
-                    withAnimation(.spring(response: 0.36, dampingFraction: 0.82)) { artworkDrag = 0 }
-                    return
-                }
+                let shouldCommit = distance > pageDistance * 0.22 || projected > pageDistance * 0.34
                 let goingNext = value.translation.width < 0
-                guard (goingNext ? hasNext : hasPrevious) else {
+                guard shouldCommit, (goingNext ? hasNext : hasPrevious) else {
                     withAnimation(.spring(response: 0.36, dampingFraction: 0.82)) { artworkDrag = 0 }
                     return
                 }
                 swipeBusy = true
                 UIImpactFeedbackGenerator(style: .light).impactOccurred()
                 withAnimation(.timingCurve(0.2, 0.8, 0.2, 1, duration: 0.24)) {
-                    artworkDrag = goingNext ? -size : size
+                    artworkDrag = goingNext ? -pageDistance : pageDistance
                 }
                 Task { @MainActor in
                     try? await Task.sleep(for: .milliseconds(240))
@@ -212,7 +200,7 @@ struct FullScreenAudioPlayerView: View {
                     }
                 }
             )
-            .frame(height: 20)
+            .frame(height: 22)
 
             HStack {
                 Text(TimeFormatting.string(position))
@@ -238,7 +226,7 @@ struct FullScreenAudioPlayerView: View {
 
             Spacer(minLength: 0)
 
-            transportButton(systemImage: "backward.fill", size: 34, label: "Предыдущий") {
+            transportButton(systemImage: "backward.fill", size: 32, label: "Предыдущий") {
                 engine.previous()
             }
 
@@ -254,7 +242,7 @@ struct FullScreenAudioPlayerView: View {
 
             Spacer(minLength: 0)
 
-            transportButton(systemImage: "forward.fill", size: 34, label: "Следующий") {
+            transportButton(systemImage: "forward.fill", size: 32, label: "Следующий") {
                 engine.next()
             }
 
@@ -276,20 +264,19 @@ struct FullScreenAudioPlayerView: View {
             Image(systemName: systemImage)
                 .font(.system(size: size))
                 .contentTransition(.symbolEffect(.replace))
-                .frame(width: max(size + 22, 60), height: max(size + 22, 60))
+                .frame(width: max(size + 22, 56), height: max(size + 22, 56))
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .accessibilityLabel(label)
     }
 
-    /// Перемешка/повтор: включённое состояние — залитый кружок.
     private func toggleButton(systemImage: String, isOn: Bool, label: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: systemImage)
-                .font(.body.weight(.semibold))
+                .font(.callout.weight(.semibold))
                 .foregroundStyle(isOn ? Color.black : Color.white.opacity(0.7))
-                .frame(width: 44, height: 44)
+                .frame(width: 40, height: 40)
                 .background(isOn ? Color.white.opacity(0.9) : Color.clear, in: Circle())
                 .contentShape(Circle())
         }
@@ -312,7 +299,7 @@ struct FullScreenAudioPlayerView: View {
                 activeHeight: 7,
                 fillColor: .white.opacity(0.85)
             )
-            .frame(height: 16)
+            .frame(height: 18)
             Image(systemName: "speaker.wave.3.fill")
                 .font(.caption)
                 .foregroundStyle(.white.opacity(0.6))
@@ -326,8 +313,8 @@ struct FullScreenAudioPlayerView: View {
         HStack(spacing: 0) {
             Button { showQueue = true } label: {
                 Image(systemName: "list.bullet")
+                    .font(.title3)
                     .frame(width: 44, height: 44)
-                    .contentShape(Rectangle())
             }
             .accessibilityLabel("Очередь")
 
@@ -349,6 +336,7 @@ struct FullScreenAudioPlayerView: View {
 
             Button { item.isFavorite.toggle() } label: {
                 Image(systemName: item.isFavorite ? "heart.fill" : "heart")
+                    .font(.title3)
                     .foregroundStyle(item.isFavorite ? AnyShapeStyle(.pink) : AnyShapeStyle(.white.opacity(0.9)))
                     .frame(width: 44, height: 44)
             }
@@ -358,6 +346,7 @@ struct FullScreenAudioPlayerView: View {
 
             Button { showInfo = true } label: {
                 Image(systemName: "info.circle")
+                    .font(.title3)
                     .frame(width: 44, height: 44)
             }
             .accessibilityLabel("Информация")
@@ -367,9 +356,7 @@ struct FullScreenAudioPlayerView: View {
             AirPlayRoutePicker(prioritizesVideoDevices: item.kind == .video)
                 .frame(width: 30, height: 30)
         }
-        .font(.title3)
         .foregroundStyle(.white.opacity(0.9))
-        .frame(maxWidth: .infinity)
     }
 
     private var speedBinding: Binding<Float> {

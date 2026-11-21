@@ -1,7 +1,13 @@
 import SwiftUI
 
-enum AppTab: Hashable {
+enum AppTab: String, Hashable, CaseIterable {
     case music, video, radio, search, more
+
+    /// Для CI-скриншотов: simctl launch --set-env-var SW_START_TAB=radio
+    static func fromLaunchEnvironment() -> AppTab {
+        let value = ProcessInfo.processInfo.environment["SW_START_TAB"] ?? ""
+        return AppTab.allCases.first { $0.rawValue == value } ?? .music
+    }
 }
 
 /// Корневая навигация: нативный TabView (Liquid Glass) + мини-плеер в accessory.
@@ -10,12 +16,9 @@ struct RootTabView: View {
     @Environment(MediaPlayerEngine.self) private var engine
     @Environment(FileImportService.self) private var importer
 
-    @State private var selection: AppTab = .music
+    @State private var selection: AppTab = AppTab.fromLaunchEnvironment()
     @State private var lastNonSearchTab: AppTab = .music
     @State private var showFullPlayer = false
-    @Namespace private var playerNamespace
-
-    static let playerTransitionID = "fullscreen-audio-player"
 
     var body: some View {
         @Bindable var importer = importer
@@ -24,7 +27,7 @@ struct RootTabView: View {
         // с треком — живые данные.
         tabView
             .tabViewBottomAccessory {
-                MiniPlayerAccessoryView(namespace: playerNamespace) {
+                MiniPlayerAccessoryView {
                     showFullPlayer = true
                 }
             }
@@ -40,15 +43,13 @@ struct RootTabView: View {
             guard selection == .search, app.searchQuery.isEmpty else { return }
             selection = lastNonSearchTab
         }
-        // Лист на весь экран со свайпом вниз. Zoom-переход от обложки
-        // мини-плеера возвращён: краш 1.0.20–1.0.22 был вызван
-        // lazy-requestHandler обложки в nowPlayingInfo (подтверждено
-        // бисекцией и журналом), а не переходом.
+        // Лист на весь экран со свайпом вниз. Zoom-переход убран окончательно:
+        // с ним контент листа измерялся в геометрии источника перехода и
+        // «уезжал» за края экрана (подтверждено скриншотом 1.0.30).
         .sheet(isPresented: $showFullPlayer) {
             FullScreenAudioPlayerView()
                 .presentationDetents([.large])
                 .presentationDragIndicator(.hidden)
-                .navigationTransition(.zoom(sourceID: Self.playerTransitionID, in: playerNamespace))
         }
         // Собственный оверлей-баннер вместо .alert: системный алерт в
         // иерархии TabView мог не показываться, поэтому этапы импорта были

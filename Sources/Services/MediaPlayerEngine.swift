@@ -115,8 +115,61 @@ final class MediaPlayerEngine {
     private static let queueIndexKey = "sw.queue.index"
 
     func saveQueueSnapshot() {
+        // Пустая очередь (радио-режим) не должна затирать снимок библиотеки.
+        guard !queueLogic.playOrder.isEmpty else { return }
         UserDefaults.standard.set(queueLogic.playOrder.map(\.uuidString), forKey: Self.queueIDsKey)
         UserDefaults.standard.set(queueLogic.currentIndex ?? 0, forKey: Self.queueIndexKey)
+    }
+
+    // MARK: - Радио на том же плеере
+
+    struct RadioNowPlaying: Equatable {
+        let title: String
+        let subtitle: String
+    }
+
+    private(set) var radioNowPlaying: RadioNowPlaying?
+    var onStreamFailure: ((String) -> Void)?
+    private var streamObservation: NSKeyValueObservation?
+
+    /// Поток играет тем же AVQueuePlayer: локскрин/AirPods/Dynamic Island
+    /// получают управление бесплатно, как у обычных треков.
+    func playStream(url: URL, title: String, subtitle: String) {
+        // Останавливаем библиотеку, не дёргая хук (иначе радио само себя глушит).
+        player.pause()
+        player.removeAllItems()
+        queueLogic.replaceQueue([], currentID: nil)
+        syncQueueMirror()
+        isVideoMode = false
+        displayedPosition = 0
+
+        radioNowPlaying = RadioNowPlaying(title: title, subtitle: subtitle)
+        let item = AVPlayerItem(url: url)
+        streamObservation = item.observe(\.status, options: [.new]) { [weak self] probed, _ in
+            guard probed.status == .failed else { return }
+            let message = probed.error?.localizedDescription ?? "Поток недоступен"
+            Task { @MainActor [weak self] in
+                guard let self, self.radioNowPlaying?.title == title else { return }
+                self.onStreamFailure?(message)
+                self.stopStream()
+            }
+        }
+        player.insert(item, after: nil)
+        configureAudioSession()
+        player.play()
+        isPlaying = true
+        nowPlaying?.update()
+        DebugLog.shared.add("📻 радио: старт «\(title)»")
+    }
+
+    func stopStream() {
+        guard radioNowPlaying != nil else { return }
+        streamObservation = nil
+        radioNowPlaying = nil
+        player.pause()
+        player.removeAllItems()
+        isPlaying = false
+        nowPlaying?.update()
     }
 
     /// Восстанавливает последнюю очередь ПАУЗОЙ: мини-плеер показывает трек,
@@ -159,6 +212,15 @@ final class MediaPlayerEngine {
     }
 
     func play() {
+        // Радио: play/pause на локскрине управляют потоком, хук библиотеки
+        // их не касается.
+        if radioNowPlaying != nil {
+            configureAudioSession()
+            player.play()
+            isPlaying = true
+            nowPlaying?.update()
+            return
+        }
         onBeforeLibraryPlay?()
         guard player.currentItem != nil else {
             if !queueItems.isEmpty { rebuildPlayer(autoplay: true, resume: true) }

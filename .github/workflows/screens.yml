@@ -1,0 +1,77 @@
+name: UI Screenshots
+
+# Самопроверка: собираем Debug для симулятора, открываем каждую вкладку
+# (SW_START_TAB читается в RootTabView) и выкладываем скриншоты артефактом.
+# Это не блокирует релиз — превью-сборка живёт в build.yml.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: screens
+  cancel-in-progress: true
+
+jobs:
+  screens:
+    name: Capture tabs
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.0.0
+        with:
+          fetch-depth: 1
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Set Xcode Version
+        run: |
+          XC=$(ls -d /Applications/Xcode*.app | sort -V | tail -1)
+          sudo xcode-select -s "$XC/Contents/Developer"
+          xcodebuild -runFirstLaunch
+
+      - name: Generate project
+        run: xcodegen generate
+
+      - name: Build for simulator
+        run: |
+          xcodebuild -project StrayWave.xcodeproj \
+            -scheme StrayWave \
+            -configuration Debug \
+            -sdk iphonesimulator \
+            -derivedDataPath build-sim \
+            CODE_SIGNING_ALLOWED=NO \
+            build 2>&1 | tail -20
+
+      - name: Boot simulator and capture each tab
+        run: |
+          set -e
+          UDID=$(xcrun simctl list devices available --json | python3 -c '
+          import json,sys
+          data = json.load(sys.stdin)
+          for runtime, devices in sorted(data["devices"].items(), reverse=True):
+              for d in devices:
+                  if d["name"].startswith("iPhone"):
+                      print(d["udid"]); sys.exit(0)
+          sys.exit(1)')
+          xcrun simctl boot "$UDID"
+          APP=$(find build-sim -name "StrayWave.app" -type d | head -n 1)
+          xcrun simctl install "$UDID" "$APP"
+          mkdir -p screens
+          for tab in music video radio search more; do
+            xcrun simctl launch --set-env-var SW_START_TAB="$tab" "$UDID" com.l1ratch.StrayWave
+            sleep 8
+            xcrun simctl io "$UDID" screenshot "screens/$tab.png"
+            xcrun simctl terminate "$UDID" com.l1ratch.StrayWave || true
+            sleep 2
+          done
+          ls -la screens
+
+      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        with:
+          name: ui-screens
+          path: screens/

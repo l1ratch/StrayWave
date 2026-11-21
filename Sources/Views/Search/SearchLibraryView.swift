@@ -26,24 +26,61 @@ struct SearchLibraryView: View {
         }
     }
 
+    private var stations: [RadioStation] {
+        RadioService.shared.searchResults(query)
+    }
+
     var body: some View {
         @Bindable var app = app
         NavigationStack {
             List {
-                if items.isEmpty {
+                if items.isEmpty && stations.isEmpty {
                     ContentUnavailableView(
                         "Библиотека пуста",
                         systemImage: "music.note",
                         description: Text("Импортируйте файлы на вкладках «Музыка» и «Видео».")
                     )
                     .listRowSeparator(.hidden)
-                } else if results.isEmpty {
+                } else if results.isEmpty && stations.isEmpty {
                     ContentUnavailableView.search(text: query)
                         .listRowSeparator(.hidden)
                 } else {
-                    ForEach(results) { item in
-                        MediaRowView(item: item)
-                            .onTapGesture { play(item) }
+                    if !results.isEmpty {
+                        Section {
+                            ForEach(results) { item in
+                                MediaRowView(item: item)
+                                    .onTapGesture { play(item) }
+                            }
+                        } header: {
+                            if !query.isEmpty { Text("Треки") }
+                        }
+                    }
+                    // Радио тоже ищется — по названию, жанру, региону.
+                    if !stations.isEmpty {
+                        Section("Радио") {
+                            ForEach(stations) { station in
+                                Button {
+                                    RadioService.shared.play(station)
+                                } label: {
+                                    HStack(spacing: 12) {
+                                        Image(systemName: "antenna.radiowaves.left.and.right")
+                                            .foregroundStyle(.purple)
+                                        VStack(alignment: .leading, spacing: 1) {
+                                            Text(station.name)
+                                            Text("\(station.genre) · \(station.region)")
+                                                .font(.caption)
+                                                .foregroundStyle(.secondary)
+                                        }
+                                        Spacer()
+                                        if RadioService.shared.currentStation == station {
+                                            Image(systemName: "waveform")
+                                                .foregroundStyle(.tint)
+                                        }
+                                    }
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
                     }
                 }
             }

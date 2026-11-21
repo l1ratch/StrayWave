@@ -18,8 +18,18 @@ final class NowPlayingBridge {
     }
 
     func update() {
-        guard let engine, let item = engine.currentItem else {
-            infoCenter.nowPlayingInfo = nil
+        guard let engine else { return }
+        guard let item = engine.currentItem else {
+            // Радио: тот же плеер, но MediaItem отсутствует — публикуем станцию.
+            if let radio = engine.radioNowPlaying {
+                infoCenter.nowPlayingInfo = [
+                    MPMediaItemPropertyTitle: radio.title,
+                    MPMediaItemPropertyArtist: radio.subtitle,
+                    MPNowPlayingInfoPropertyPlaybackRate: engine.isPlaying ? 1.0 : 0.0
+                ]
+            } else {
+                infoCenter.nowPlayingInfo = nil
+            }
             return
         }
         var info = [String: Any]()

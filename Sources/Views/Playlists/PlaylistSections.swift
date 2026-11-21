@@ -79,3 +79,115 @@ struct PlaylistDeleteButton: View {
         }
     }
 }
+
+// MARK: - Закрепление плейлиста
+
+struct PlaylistPinButton: View {
+    @Environment(\.modelContext) private var context
+    let playlist: Playlist
+
+    var body: some View {
+        Button {
+            playlist.isPinned.toggle()
+            try? context.save()
+        } label: {
+            Label(playlist.isPinned ? "Открепить" : "Закрепить",
+                  systemImage: playlist.isPinned ? "pin.slash" : "pin")
+        }
+    }
+}
+
+// MARK: - Сетка плейлистов (закрепление + перетаскивание)
+
+/// Порядок: закреплённые первыми, затем ручной sortIndex (перетаскивание),
+/// затем по дате создания.
+enum PlaylistOrdering {
+    static func sorted(_ playlists: [Playlist], kind: MediaKind? = nil) -> [Playlist] {
+        let filtered = kind == nil ? playlists : playlists.filter { $0.kind == kind }
+        return filtered.sorted { a, b in
+            if a.isPinned != b.isPinned { return a.isPinned }
+            if a.sortIndex != b.sortIndex { return a.sortIndex < b.sortIndex }
+            return a.createdAt > b.createdAt
+        }
+    }
+}
+
+struct PlaylistGrid: View {
+    let kind: MediaKind
+
+    @Environment(\.modelContext) private var context
+    @Query private var playlists: [Playlist]
+    @Query private var allItems: [MediaItem]
+
+    private var ordered: [Playlist] {
+        PlaylistOrdering.sorted(playlists, kind: kind)
+    }
+
+    private let columns = [
+        GridItem(.flexible(), spacing: 14),
+        GridItem(.flexible(), spacing: 14)
+    ]
+
+    var body: some View {
+        LazyVGrid(columns: columns, spacing: 18) {
+            ForEach(ordered) { playlist in
+                NavigationLink(value: playlist.id) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        PlaylistArtwork(playlist: playlist, items: items(of: playlist), size: nil)
+                            .aspectRatio(1, contentMode: .fit)
+                            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                            .overlay(alignment: .topTrailing) {
+                                if playlist.isPinned {
+                                    Image(systemName: "pin.fill")
+                                        .font(.caption)
+                                        .foregroundStyle(.white)
+                                        .padding(6)
+                                        .background(.black.opacity(0.35), in: Circle())
+                                        .padding(8)
+                                }
+                            }
+                        Text(playlist.name)
+                            .font(.subheadline.weight(.semibold))
+                            .lineLimit(1)
+                        Text("\(playlist.itemIDs.count) \(kind == .video ? "видео" : "треков")")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .buttonStyle(.plain)
+                .draggable(playlist.id.uuidString) {
+                    PlaylistArtwork(playlist: playlist, items: items(of: playlist), size: 80)
+                        .opacity(0.8)
+                }
+                .dropDestination(for: String.self) { items, _ in
+                    guard let string = items.first, let sourceID = UUID(uuidString: string) else { return false }
+                    return move(sourceID, before: playlist.id)
+                }
+                .contextMenu {
+                    PlaylistPinButton(playlist: playlist)
+                    PlaylistDeleteButton(playlist: playlist)
+                }
+            }
+        }
+    }
+
+    private func move(_ sourceID: UUID, before targetID: UUID) -> Bool {
+        var ids = ordered.map(\.id)
+        guard let from = ids.firstIndex(of: sourceID),
+              let to = ids.firstIndex(of: targetID), from != to else { return false }
+        ids.move(fromOffsets: IndexSet(integer: from), toOffset: to > from ? to + 1 : to)
+        let byID = Dictionary(ordered.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        for (index, id) in ids.enumerated() {
+            byID[id]?.sortIndex = index
+        }
+        // Закреплённые остаются сверху: порядок пересчитываем только внутри групп.
+        try? context.save()
+        DebugLog.shared.add("↕️ порядок плейлистов обновлён")
+        return true
+    }
+
+    private func items(of playlist: Playlist) -> [MediaItem] {
+        let byID = Dictionary(allItems.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        return playlist.itemIDs.compactMap { byID[$0] }
+    }
+}
