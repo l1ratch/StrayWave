@@ -10,6 +10,13 @@ struct RadioStation: Identifiable, Hashable, Codable {
     var id: String { url }
 }
 
+/// Категория станций для секций (ключ по элементу кортежа не компилируется).
+struct RadioCategory: Identifiable, Hashable {
+    let category: String
+    let stations: [RadioStation]
+    var id: String { category }
+}
+
 /// Онлайн-радио. Единственная сетевая функция приложения — всё остальное
 /// по-прежнему работает офлайн.
 ///
@@ -57,12 +64,12 @@ final class RadioService {
 
     var allStations: [RadioStation] { Self.builtInStations + customStations }
 
-    var grouped: [(category: String, stations: [RadioStation])] {
+    var grouped: [RadioCategory] {
         let dict = Dictionary(grouping: allStations) { $0.category }
         let order = ["Мои", "Поп", "Танцевальная", "Рок", "Разговорное"]
         return order
             .filter { dict[$0] != nil }
-            .map { ($0, dict[$0] ?? []) }
+            .map { RadioCategory(category: $0, stations: dict[$0] ?? []) }
     }
 
     // MARK: - Управление

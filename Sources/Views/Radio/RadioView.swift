@@ -51,7 +51,7 @@ struct RadioView: View {
                     }
                 }
 
-                ForEach(radio.grouped, id: \.category) { group in
+                ForEach(radio.grouped) { group in
                     Section(group.category) {
                         ForEach(group.stations) { station in
                             stationRow(station)
