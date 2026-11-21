@@ -3,8 +3,15 @@ import SwiftUI
 enum AppTab: String, Hashable, CaseIterable {
     case music, video, radio, search, more
 
-    /// Для CI-скриншотов: simctl launch --set-env-var SW_START_TAB=radio
+    /// Для CI-скриншотов: simctl launch <udid> <bundle> --tab radio
+    /// (или env SW_START_TAB — аргумент надёжнее: variadic-опции simctl
+    /// ломали разбор).
     static func fromLaunchEnvironment() -> AppTab {
+        let arguments = CommandLine.arguments
+        if let index = arguments.firstIndex(of: "--tab"), arguments.indices.contains(index + 1) {
+            let value = arguments[index + 1]
+            if let tab = AppTab.allCases.first(where: { $0.rawValue == value }) { return tab }
+        }
         let value = ProcessInfo.processInfo.environment["SW_START_TAB"] ?? ""
         return AppTab.allCases.first { $0.rawValue == value } ?? .music
     }

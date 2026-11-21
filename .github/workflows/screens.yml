@@ -63,8 +63,8 @@ jobs:
           xcrun simctl install "$UDID" "$APP"
           mkdir -p screens
           for tab in music video radio search more; do
-            xcrun simctl launch --set-env-var SW_START_TAB="$tab" "$UDID" com.l1ratch.StrayWave
-            sleep 8
+            xcrun simctl launch "$UDID" com.l1ratch.StrayWave --tab "$tab"
+            sleep 10
             xcrun simctl io "$UDID" screenshot "screens/$tab.png"
             xcrun simctl terminate "$UDID" com.l1ratch.StrayWave || true
             sleep 2
@@ -72,6 +72,8 @@ jobs:
           ls -la screens
 
       - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        if: always()
         with:
           name: ui-screens
           path: screens/
+          if-no-files-found: ignore
