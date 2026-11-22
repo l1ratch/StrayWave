@@ -100,25 +100,25 @@ struct FullScreenAudioPlayerView: View {
 
     // MARK: - Обложка
 
-    /// Квадрат с ДЕТЕРМИНИРОВАННОЙ геометрией. Раньше цепочка
-    /// aspectRatio+frame(maxWidth:) с greedy scaledToFill внутри давала
-    /// вертикально растянутый прямоугольник (видно на CI-скриншоте
-    /// player.png) — это и был «уезжающий/широкий» плеер. Теперь сторона
-    /// считается явно из предложенного места, ничего не может выйти за
-    /// границы: локальный GeometryReader безопасен (корневой убран).
+    /// Квадрат с ФИКСИРОВАННОЙ стороной: min(ширина экрана - отступы, 340).
+    /// Никаких GeometryReader/aspectRatio-переговоров — frame(width:height:)
+    /// задаёт размер приказом, содержимое обрезается clipShape. Это
+    /// окончательно убивает «растянутый/уезжающий» блок обложки.
+    private var artworkSide: CGFloat {
+        let screenWidth = UIScreen.screens.first?.bounds.width ?? 390
+        return min(screenWidth - 88, 340)
+    }
+
     private func artworkBlock(item: MediaItem) -> some View {
-        GeometryReader { geo in
-            let side = min(geo.size.width, geo.size.height, 340)
-            artworkImage(item: item)
-                .frame(width: side, height: side)
-                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                .shadow(color: .black.opacity(0.35), radius: 24, y: 14)
-                .scaleEffect(engine.isPlaying ? 1.0 : 0.9)
-                .animation(.spring(response: 0.45, dampingFraction: 0.75), value: engine.isPlaying)
-                .offset(x: artworkDrag)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .gesture(artworkDragGesture())
-        }
+        artworkImage(item: item)
+            .frame(width: artworkSide, height: artworkSide)
+            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .shadow(color: .black.opacity(0.35), radius: 24, y: 14)
+            .scaleEffect(engine.isPlaying ? 1.0 : 0.9)
+            .animation(.spring(response: 0.45, dampingFraction: 0.75), value: engine.isPlaying)
+            .offset(x: artworkDrag)
+            .contentShape(Rectangle())
+            .gesture(artworkDragGesture())
     }
 
     @ViewBuilder
