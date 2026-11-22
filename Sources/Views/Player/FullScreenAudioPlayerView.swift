@@ -4,10 +4,11 @@ import CoreGraphics
 
 /// Полноэкранный аудиоплеер.
 ///
-/// Геометрия детерминированная: без корневого GeometryReader и без
-/// zoom-перехода — именно они в 1.0.29–1.0.30 измеряли контент в границах
-/// источника перехода и «уводили» всё за правый край. Обложка — квадрат до
-/// 340 pt, остальное в обычном VStack с отступами.
+/// Макет ПРОКРУЧИВАЕМЫЙ и не может переполниться: раньше VStack(spacing: 0)
+/// со Spacer(minLength:) при нехватке высоты не сжимался, а вылезал за
+/// границы экрана — это и был «уезжающий» плеер (журнал устройства:
+/// container=319x426, а контролам нужно ~400pt при обложке 319pt).
+/// Сторона обложки ограничена и шириной, и остатком высоты.
 struct FullScreenAudioPlayerView: View {
     @Environment(MediaPlayerEngine.self) private var engine
     @Environment(\.dismiss) private var dismiss
@@ -23,6 +24,10 @@ struct FullScreenAudioPlayerView: View {
     @State private var swipeBusy = false
     private let pageDistance: CGFloat = 300
 
+    /// Высота всего, кроме обложки: шапка, заголовки, перемотка, транспорт,
+    /// нижний ряд и отступы. Измерено по фактическим размерам элементов.
+    private let chromeHeight: CGFloat = 260
+
     private var currentItem: MediaItem? { engine.currentItem }
 
     var body: some View {
@@ -30,42 +35,47 @@ struct FullScreenAudioPlayerView: View {
             background
 
             if let item = currentItem {
-                VStack(spacing: 0) {
-                    // fullScreenCover не закрывается свайпом — нужна явная кнопка.
-                    HStack {
-                        Spacer()
-                        Button {
-                            dismiss()
-                        } label: {
-                            Image(systemName: "chevron.compact.down")
-                                .font(.system(size: 22, weight: .semibold))
-                                .foregroundStyle(.white.opacity(0.7))
-                                .padding(10)
-                                .contentShape(Rectangle())
+                GeometryReader { geo in
+                    // Квадрат: не шире контейнера и не выше остатка места.
+                    let side = max(120, min(geo.size.width, geo.size.height - chromeHeight, 340))
+
+                    ScrollView(.vertical, showsIndicators: false) {
+                        VStack(spacing: 0) {
+                            HStack {
+                                Spacer()
+                                Button {
+                                    dismiss()
+                                } label: {
+                                    Image(systemName: "chevron.compact.down")
+                                        .font(.system(size: 22, weight: .semibold))
+                                        .foregroundStyle(.white.opacity(0.75))
+                                        .frame(width: 44, height: 44)
+                                        .contentShape(Rectangle())
+                                }
+                                .accessibilityLabel("Закрыть плеер")
+                            }
+
+                            artworkBlock(item: item, side: side)
+                                .padding(.top, 8)
+                                .padding(.bottom, 20)
+
+                            titleRow(item: item)
+                                .padding(.bottom, 14)
+
+                            scrubber(item: item)
+                                .padding(.bottom, 12)
+
+                            transport
+                                .padding(.bottom, 12)
+
+                            actionBar(item: item)
                         }
-                        .accessibilityLabel("Закрыть плеер")
+                        .padding(.horizontal, 24)
+                        .padding(.bottom, 16)
+                        .frame(minHeight: geo.size.height)
                     }
-                    .padding(.top, 4)
-
-                    Spacer(minLength: 12)
-
-                    artworkBlock(item: item)
-
-                    Spacer(minLength: 16)
-
-                    titleRow(item: item)
-                        .padding(.bottom, 14)
-
-                    scrubber(item: item)
-                        .padding(.bottom, 10)
-
-                    transport
-                        .padding(.bottom, 14)
-
-                    actionBar(item: item)
-                        .padding(.bottom, 8)
+                    .scrollIndicators(.hidden)
                 }
-                .padding(.horizontal, 28)
             } else {
                 ContentUnavailableView("Ничего не играет", systemImage: "music.note")
             }
@@ -111,30 +121,23 @@ struct FullScreenAudioPlayerView: View {
 
     // MARK: - Обложка
 
-    /// Квадрат обложки. Размер берётся из ФАКТИЧЕСКОЙ ширины контейнера
-    /// (GeometryReader), а не из UIScreen.bounds: на iOS 26 bounds не
-    /// отражают реальную ориентацию/ширину сцены, из-за чего вёрстка
-    /// «уезжала» на устройстве, оставаясь правильной на симуляторе.
-    private func artworkBlock(item: MediaItem) -> some View {
-        GeometryReader { geo in
-            let side = min(geo.size.width, 340)
-            artworkImage(item: item)
-                .frame(width: side, height: side)
-                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                .shadow(color: .black.opacity(0.35), radius: 24, y: 14)
-                .scaleEffect(engine.isPlaying ? 1.0 : 0.9)
-                .animation(.spring(response: 0.45, dampingFraction: 0.75), value: engine.isPlaying)
-                .offset(x: artworkDrag)
-                .frame(width: geo.size.width, height: geo.size.height)
-                .contentShape(Rectangle())
-                .gesture(artworkDragGesture())
-                .onAppear {
-                    // Самоотчёт ФАКТИЧЕСКОЙ геометрии: если на устройстве
-                    // контейнер шире экрана — журнал это покажет числом.
-                    DebugLog.shared.add("🎨 player: container=\(Int(geo.size.width))x\(Int(geo.size.height)) side=\(Int(side))")
-                }
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    /// Квадрат обложки заданной стороны. Сторона считается снаружи — от
+    /// фактической ширины И остатка высоты контейнера, поэтому блок не может
+    /// вылезти за экран ни по одной оси.
+    private func artworkBlock(item: MediaItem, side: CGFloat) -> some View {
+        artworkImage(item: item)
+            .frame(width: side, height: side)
+            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .shadow(color: .black.opacity(0.35), radius: 20, y: 12)
+            .scaleEffect(engine.isPlaying ? 1.0 : 0.92)
+            .animation(.spring(response: 0.45, dampingFraction: 0.75), value: engine.isPlaying)
+            .offset(x: artworkDrag)
+            .contentShape(Rectangle())
+            .gesture(artworkDragGesture())
+            .frame(maxWidth: .infinity)
+            .onAppear {
+                DebugLog.shared.add("🎨 player: side=\(Int(side))")
+            }
     }
 
     @ViewBuilder

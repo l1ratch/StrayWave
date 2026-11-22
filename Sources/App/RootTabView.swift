@@ -56,13 +56,14 @@ struct RootTabView: View {
             guard selection == .search, app.searchQuery.isEmpty else { return }
             selection = lastNonSearchTab
         }
-        // Раскрытый плеер: fullScreenCover, а не sheet. Лист на iOS 26
-        // измеряется в карточной геометрии с detents — именно из-за этого
-        // содержимое «строилось под широкий экран» (три раунда правок
-        // содержимого это не лечили: виноват был контейнер). У fullScreenCover
-        // размер ровно = окно. Закрытие — явная кнопка в плеере.
-        .fullScreenCover(isPresented: $showFullPlayer) {
+        // Раскрытый плеер — снова sheet: нативный свайп вниз для закрытия.
+        // В fullScreenCover свайпа нет, и выйти из плеера было нечем.
+        // «Уезжала» не карточка листа, а переполнение по высоте — оно
+        // устранено в самом плеере (прокручиваемый макет).
+        .sheet(isPresented: $showFullPlayer) {
             FullScreenAudioPlayerView()
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
         }
         // Видео: только системный AVPlayerViewController — со своим крестиком,
         // PiP, Live Text и скоростями. Своего оверлея больше не рисуем.
