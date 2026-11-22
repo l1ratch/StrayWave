@@ -111,38 +111,30 @@ struct FullScreenAudioPlayerView: View {
 
     // MARK: - Обложка
 
-    /// Квадрат с ФИКСИРОВАННОЙ стороной: min(ширина экрана - отступы, 340).
-    /// Никаких GeometryReader/aspectRatio-переговоров — frame(width:height:)
-    /// задаёт размер приказом, содержимое обрезается clipShape. Это
-    /// окончательно убивает «растянутый/уезжающий» блок обложки.
-    private var artworkSide: CGFloat {
-        let screenWidth = UIScreen.screens.first?.bounds.width ?? 390
-        return min(screenWidth - 88, 340)
-    }
-
+    /// Квадрат обложки. Размер берётся из ФАКТИЧЕСКОЙ ширины контейнера
+    /// (GeometryReader), а не из UIScreen.bounds: на iOS 26 bounds не
+    /// отражают реальную ориентацию/ширину сцены, из-за чего вёрстка
+    /// «уезжала» на устройстве, оставаясь правильной на симуляторе.
     private func artworkBlock(item: MediaItem) -> some View {
-        // Color.clear фиксирует геометрию приказом: он не торгуется за
-        // размер, overlay получает ровно квадрат, clipped режет любое
-        // greedy содержимое (плейсхолдер убегал из frame(width:height:)).
-        Color.clear
-            .frame(width: artworkSide, height: artworkSide)
-            .overlay {
-                artworkImage(item: item)
-            }
-            .clipped()
-            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-            .shadow(color: .black.opacity(0.35), radius: 24, y: 14)
-            .scaleEffect(engine.isPlaying ? 1.0 : 0.9)
-            .animation(.spring(response: 0.45, dampingFraction: 0.75), value: engine.isPlaying)
-            .offset(x: artworkDrag)
-            .contentShape(Rectangle())
-            .gesture(artworkDragGesture())
-            .onAppear {
-                // Самоотчёт геометрии: CI забирает журнал из контейнера
-                // симулятора — факты вместо пиксельной криминалистики.
-                let screen = UIScreen.screens.first?.bounds ?? .zero
-                DebugLog.shared.add("🎨 player: side=\(Int(artworkSide)) screen=\(Int(screen.width))x\(Int(screen.height))")
-            }
+        GeometryReader { geo in
+            let side = min(geo.size.width, 340)
+            artworkImage(item: item)
+                .frame(width: side, height: side)
+                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .shadow(color: .black.opacity(0.35), radius: 24, y: 14)
+                .scaleEffect(engine.isPlaying ? 1.0 : 0.9)
+                .animation(.spring(response: 0.45, dampingFraction: 0.75), value: engine.isPlaying)
+                .offset(x: artworkDrag)
+                .frame(width: geo.size.width, height: geo.size.height)
+                .contentShape(Rectangle())
+                .gesture(artworkDragGesture())
+                .onAppear {
+                    // Самоотчёт ФАКТИЧЕСКОЙ геометрии: если на устройстве
+                    // контейнер шире экрана — журнал это покажет числом.
+                    DebugLog.shared.add("🎨 player: container=\(Int(geo.size.width))x\(Int(geo.size.height)) side=\(Int(side))")
+                }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     @ViewBuilder

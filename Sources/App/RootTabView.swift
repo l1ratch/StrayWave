@@ -72,6 +72,14 @@ struct RootTabView: View {
         // CI-скриншот: --player открывает раскрытый плеер сразу, чтобы
         // раннер мог снять его реальные пиксели (данные вместо догадок).
         .onAppear {
+            // Фактическая геометрия окна: если сцена живёт в ландшафте,
+            // здесь будет «широкое» число — это видно в журнале диагностики.
+            if let scene = UIApplication.shared.connectedScenes
+                .compactMap({ $0 as? UIWindowScene }).first,
+               let window = scene.keyWindow {
+                let size = window.bounds.size
+                DebugLog.shared.add("🪟 root: window=\(Int(size.width))x\(Int(size.height)) orientation=\(scene.interfaceOrientation.rawValue)")
+            }
             if CommandLine.arguments.contains("--player") {
                 showFullPlayer = true
             }
