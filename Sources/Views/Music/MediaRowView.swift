@@ -13,23 +13,34 @@ struct ArtworkImage: View {
     @State private var image: UIImage?
 
     var body: some View {
-        // nil size = «весь предложенный фрейм»: раньше aspectRatio(nil)
-        // пропускал собственную геометрию картинки наружу, и родителя
-        // растягивало/«уводило» (баги раскрытого плеера). При size == nil
-        // картинка режется по фрейму (center-crop).
-        content
-            .frame(
-                width: aspectRatio == nil ? size : nil,
-                height: aspectRatio == nil ? size : nil
-            )
-            .aspectRatio(aspectRatio, contentMode: .fit)
-            .clipped()
-            .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
-            .task(id: item.artworkFileName) {
-                guard let fileName = item.artworkFileName,
-                      let cgImage = await ArtworkCacheService.shared.loadImage(fileName: fileName) else { return }
-                image = UIImage(cgImage: cgImage)
+        // КЛЮЧЕВОЕ: при size == nil НЕ применяем aspectRatio(nil) — с nil-
+        // аспектом SwiftUI берёт внутренний аспект контента (у плейсхолдера
+        // — пропорции SF-глифа!) и сжимает вью до них вместо заполнения
+        // фрейма. Это и был «растянутый/уезжающий» блок в плеере при
+        // корректном side=314 (самоотчёт журнала). Fill-режим: растянуться
+        // на весь предложенный фрейм и обрезаться.
+        Group {
+            if size == nil && aspectRatio == nil {
+                content
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .clipped()
+                    .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+            } else {
+                content
+                    .frame(
+                        width: aspectRatio == nil ? size : nil,
+                        height: aspectRatio == nil ? size : nil
+                    )
+                    .aspectRatio(aspectRatio, contentMode: .fit)
+                    .clipped()
+                    .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
             }
+        }
+        .task(id: item.artworkFileName) {
+            guard let fileName = item.artworkFileName,
+                  let cgImage = await ArtworkCacheService.shared.loadImage(fileName: fileName) else { return }
+            image = UIImage(cgImage: cgImage)
+        }
     }
 
     @ViewBuilder
