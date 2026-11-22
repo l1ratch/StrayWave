@@ -41,15 +41,13 @@ struct MusicLibraryView: View {
             .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .principal) {
-                    HStack {
-                        Text("Музыка")
-                            .font(.largeTitle.weight(.bold))
-                        Spacer()
-                    }
-                    // Principal центрируется по умолчанию — растягиваем,
-                    // чтобы заголовок был от левого края, как в Apple Music.
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                // topBarLeading, а не principal: principal-слот система
+                // центрирует по содержимому даже с maxWidth: .infinity
+                // (проверено на скриншотах CI). Leading-слот физически у
+                // левого края — как крупный титул медиатеки Apple Music.
+                ToolbarItem(placement: .topBarLeading) {
+                    Text("Музыка")
+                        .font(.largeTitle.weight(.bold))
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {

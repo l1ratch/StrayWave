@@ -32,13 +32,9 @@ struct VideoLibraryView: View {
             .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .principal) {
-                    HStack {
-                        Text("Видео")
-                            .font(.largeTitle.weight(.bold))
-                        Spacer()
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                ToolbarItem(placement: .topBarLeading) {
+                    Text("Видео")
+                        .font(.largeTitle.weight(.bold))
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
