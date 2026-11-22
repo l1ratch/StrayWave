@@ -13,36 +13,51 @@ struct ArtworkImage: View {
     @State private var image: UIImage?
 
     var body: some View {
-        Group {
-            if let image {
+        // nil size = «весь предложенный фрейм»: раньше aspectRatio(nil)
+        // пропускал собственную геометрию картинки наружу, и родителя
+        // растягивало/«уводило» (баги раскрытого плеера). При size == nil
+        // картинка режется по фрейму (center-crop).
+        content
+            .frame(
+                width: aspectRatio == nil ? size : nil,
+                height: aspectRatio == nil ? size : nil
+            )
+            .aspectRatio(aspectRatio, contentMode: .fit)
+            .clipped()
+            .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+            .task(id: item.artworkFileName) {
+                guard let fileName = item.artworkFileName,
+                      let cgImage = await ArtworkCacheService.shared.loadImage(fileName: fileName) else { return }
+                image = UIImage(cgImage: cgImage)
+            }
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        if let image {
+            if size == nil {
+                Image(uiImage: image)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .clipped()
+            } else {
                 Image(uiImage: image)
                     .resizable()
                     .scaledToFill()
-            } else {
-                ZStack {
-                    LinearGradient(
-                        colors: item.kind == .video
-                            ? [Color.indigo.opacity(0.5), Color.purple.opacity(0.35)]
-                            : [Color.blue.opacity(0.45), Color.teal.opacity(0.3)],
-                        startPoint: .topLeading, endPoint: .bottomTrailing
-                    )
-                    Image(systemName: item.kind == .video ? "film" : "music.note")
-                        .font(.system(size: max(12, (size ?? 80) * 0.35)))
-                        .foregroundStyle(.white.opacity(0.85))
-                }
             }
-        }
-        .frame(
-            width: aspectRatio == nil ? size : nil,
-            height: aspectRatio == nil ? size : nil
-        )
-        .aspectRatio(aspectRatio, contentMode: .fit)
-        .clipped()
-        .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
-        .task(id: item.artworkFileName) {
-            guard let fileName = item.artworkFileName,
-                  let cgImage = await ArtworkCacheService.shared.loadImage(fileName: fileName) else { return }
-            image = UIImage(cgImage: cgImage)
+        } else {
+            ZStack {
+                LinearGradient(
+                    colors: item.kind == .video
+                        ? [Color.indigo.opacity(0.5), Color.purple.opacity(0.35)]
+                        : [Color.blue.opacity(0.45), Color.teal.opacity(0.3)],
+                    startPoint: .topLeading, endPoint: .bottomTrailing
+                )
+                Image(systemName: item.kind == .video ? "film" : "music.note")
+                    .font(.system(size: max(12, (size ?? 80) * 0.35)))
+                    .foregroundStyle(.white.opacity(0.85))
+            }
         }
     }
 }
