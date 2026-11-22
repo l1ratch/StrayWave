@@ -126,6 +126,12 @@ struct FullScreenAudioPlayerView: View {
             .offset(x: artworkDrag)
             .contentShape(Rectangle())
             .gesture(artworkDragGesture())
+            .onAppear {
+                // Самоотчёт геометрии: CI забирает журнал из контейнера
+                // симулятора — факты вместо пиксельной криминалистики.
+                let screen = UIScreen.screens.first?.bounds ?? .zero
+                DebugLog.shared.add("🎨 player: side=\(Int(artworkSide)) screen=\(Int(screen.width))x\(Int(screen.height))")
+            }
     }
 
     @ViewBuilder
