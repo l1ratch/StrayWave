@@ -47,6 +47,9 @@ struct MusicLibraryView: View {
                             .font(.largeTitle.weight(.bold))
                         Spacer()
                     }
+                    // Principal центрируется по умолчанию — растягиваем,
+                    // чтобы заголовок был от левого края, как в Apple Music.
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {

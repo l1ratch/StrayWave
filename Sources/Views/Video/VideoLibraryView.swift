@@ -38,6 +38,7 @@ struct VideoLibraryView: View {
                             .font(.largeTitle.weight(.bold))
                         Spacer()
                     }
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {

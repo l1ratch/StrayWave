@@ -89,11 +89,14 @@ struct RootTabView: View {
             Tab("Радио", systemImage: "antenna.radiowaves.left.and.right", value: AppTab.radio) {
                 RadioView()
             }
-            Tab("Поиск", systemImage: "magnifyingglass", value: AppTab.search, role: .search) {
-                SearchLibraryView()
-            }
+            // Порядок важен: role .search всегда прилипает к правому краю,
+            // поэтому текстовые вкладки ставим ДО него — иначе последняя
+            // подпись залезает под кружок поиска.
             Tab("Настройки", systemImage: "gearshape", value: AppTab.more) {
                 SettingsRootView()
+            }
+            Tab("Поиск", systemImage: "magnifyingglass", value: AppTab.search, role: .search) {
+                SearchLibraryView()
             }
         }
         .tabBarMinimizeBehavior(.onScrollDown)
