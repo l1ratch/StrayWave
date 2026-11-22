@@ -38,6 +38,21 @@ final class AppEnvironment {
         // Последняя очередь/трек: мини-плеер показывает «активный» трек
         // сразу, кнопка «играть» продолжает с сохранённой позиции.
         engine.restoreLastQueue()
+
+        // Режим CI-скриншота: сидим несуществующий демо-трек, чтобы
+        // раннер мог снять раскрытый плеер (данные нужны для диагностики
+        // вёрстки, а не догадки).
+        if CommandLine.arguments.contains("--player") {
+            let demo = MediaItem(
+                kind: .audio,
+                storageType: .localDocuments,
+                title: "Демо-трек для снимка",
+                artist: "StrayWave",
+                album: "Debug",
+                duration: 212
+            )
+            engine.playItems([demo], startAt: 0)
+        }
     }
 
     /// Сканирование с защитой от наложения: повторный запрос во время

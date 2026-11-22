@@ -75,12 +75,13 @@ final class MediaPlayerEngine {
         guard !items.isEmpty else { return }
         onBeforeLibraryPlay?()
         for item in items { knownItems[item.id] = item }
-        let startID = items[min(max(index, 0), items.count - 1)].id
+        let safeIndex = min(max(index, 0), items.count - 1)
+        let startID = items[safeIndex].id
         queueLogic.replaceQueue(items.map(\.id), currentID: startID)
-        // Явный тап по треку = старт с начала. Позиция сохраняется только
-        // для «активного» трека (восстановление после перезапуска приложения
-        // идёт через отдельный путь play()).
-        rebuildPlayer(autoplay: true, resume: false)
+        // Дефолты Apple Music: песня по тапу стартует с начала, а ВИДЕО
+        // продолжает просмотр с сохранённой позиции (как фильм).
+        let resumeVideo = items[safeIndex].kind == .video
+        rebuildPlayer(autoplay: true, resume: resumeVideo)
     }
 
     func playSingle(_ item: MediaItem) {

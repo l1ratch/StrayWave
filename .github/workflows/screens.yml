@@ -69,6 +69,11 @@ jobs:
             xcrun simctl terminate "$UDID" com.l1ratch.StrayWave || true
             sleep 2
           done
+          # Раскрытый плеер: сидим демо-трек и открываем его (--player).
+          xcrun simctl launch "$UDID" com.l1ratch.StrayWave --tab music --player
+          sleep 10
+          xcrun simctl io "$UDID" screenshot "screens/player.png"
+          xcrun simctl terminate "$UDID" com.l1ratch.StrayWave || true
           ls -la screens
 
       - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0

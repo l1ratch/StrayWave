@@ -95,28 +95,37 @@ final class NowPlayingBridge: NSObject {
         // (MainActor.assertIsolated failed) — как только система впервые
         // отправляла команду (локскрин, наушники, nowPlayingInfo). Поэтому
         // честный хоп на MainActor через Task.
+        // Каждую команду пишем в журнал диагностики: на устройстве видно,
+        // доходят ли команды локскрина при видео/радио (баги #4/#5 из чата)
+        // или система их вообще не шлёт.
         center.playCommand.addTarget { [weak self] _ in
+            DebugLog.shared.add("🎛 remote: play")
             Task { @MainActor in self?.engine?.play() }
             return .success
         }
         center.pauseCommand.addTarget { [weak self] _ in
+            DebugLog.shared.add("🎛 remote: pause")
             Task { @MainActor in self?.engine?.pause() }
             return .success
         }
         center.togglePlayPauseCommand.addTarget { [weak self] _ in
+            DebugLog.shared.add("🎛 remote: togglePlayPause")
             Task { @MainActor in self?.engine?.togglePlayPause() }
             return .success
         }
         center.nextTrackCommand.addTarget { [weak self] _ in
+            DebugLog.shared.add("🎛 remote: next")
             Task { @MainActor in self?.engine?.next() }
             return .success
         }
         center.previousTrackCommand.addTarget { [weak self] _ in
+            DebugLog.shared.add("🎛 remote: previous")
             Task { @MainActor in self?.engine?.previous() }
             return .success
         }
         center.changePlaybackPositionCommand.addTarget { [weak self] event in
             guard let positionEvent = event as? MPChangePlaybackPositionCommandEvent else { return .commandFailed }
+            DebugLog.shared.add("🎛 remote: seek \(Int(positionEvent.positionTime.seconds))s")
             Task { @MainActor in self?.engine?.seek(to: positionEvent.positionTime) }
             return .success
         }
@@ -124,10 +133,12 @@ final class NowPlayingBridge: NSObject {
         center.skipForwardCommand.preferredIntervals = [NSNumber(value: interval)]
         center.skipBackwardCommand.preferredIntervals = [NSNumber(value: interval)]
         center.skipForwardCommand.addTarget { [weak self] _ in
+            DebugLog.shared.add("🎛 remote: skipForward")
             Task { @MainActor in self?.engine?.skip(by: Double(AppConfig.skipInterval)) }
             return .success
         }
         center.skipBackwardCommand.addTarget { [weak self] _ in
+            DebugLog.shared.add("🎛 remote: skipBackward")
             Task { @MainActor in self?.engine?.skip(by: -Double(AppConfig.skipInterval)) }
             return .success
         }

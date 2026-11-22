@@ -69,6 +69,13 @@ struct RootTabView: View {
         .fullScreenCover(isPresented: $showVideoPlayer) {
             NativeVideoPlayerScreen()
         }
+        // CI-скриншот: --player открывает раскрытый плеер сразу, чтобы
+        // раннер мог снять его реальные пиксели (данные вместо догадок).
+        .onAppear {
+            if CommandLine.arguments.contains("--player") {
+                showFullPlayer = true
+            }
+        }
         // Собственный оверлей-баннер вместо .alert: системный алерт в
         // иерархии TabView мог не показываться, поэтому этапы импорта были
         // невидимы. Оверлей отображается всегда, поверх контента.
