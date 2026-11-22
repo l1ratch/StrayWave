@@ -85,6 +85,13 @@ jobs:
           sleep 10
           xcrun simctl io "$UDID" screenshot "screens/player.png"
           xcrun simctl terminate "$UDID" com.l1ratch.StrayWave || true
+          sleep 2
+          # Тот же плеер, но с НАСТОЯЩЕЙ обложкой — путь, который на
+          # устройстве пользователя не проверялся ни разу.
+          xcrun simctl launch "$UDID" com.l1ratch.StrayWave --tab music --player --artwork
+          sleep 10
+          xcrun simctl io "$UDID" screenshot "screens/player-artwork.png"
+          xcrun simctl terminate "$UDID" com.l1ratch.StrayWave || true
           # Журнал диагностики из контейнера: самоотчёт геометрии приложения.
           CONTAINER=$(xcrun simctl get_app_container "$UDID" com.l1ratch.StrayWave data || true)
           if [ -n "$CONTAINER" ]; then

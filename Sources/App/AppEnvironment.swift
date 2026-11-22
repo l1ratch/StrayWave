@@ -44,6 +44,12 @@ final class AppEnvironment {
         // демо-трек, чтобы раннер снял раскрытый плеер с РЕАЛЬНЫМ контентом.
         if CommandLine.arguments.contains("--player"),
            let toneName = Self.makeScreenshotToneFile() {
+            // --artwork: проверяем путь с НАСТОЯЩЕЙ картинкой. На устройстве
+            // пользователя обложка есть, а все прежние снимки шли с
+            // плейсхолдером — этот путь не был проверен ни разу.
+            let artworkName = CommandLine.arguments.contains("--artwork")
+                ? Self.makeScreenshotArtworkFile(id: UUID())
+                : nil
             let demo = MediaItem(
                 kind: .audio,
                 storageType: .localDocuments,
@@ -51,10 +57,30 @@ final class AppEnvironment {
                 title: "Демо-трек для снимка",
                 artist: "StrayWave",
                 album: "Debug",
-                duration: 3
+                duration: 3,
+                artworkFileName: artworkName
             )
             engine.playItems([demo], startAt: 0)
         }
+    }
+
+    /// Непрозрачная тестовая обложка 600×600 в кэше (только для --artwork).
+    private static func makeScreenshotArtworkFile(id: UUID) -> String? {
+        let name = ArtworkCacheService.fileName(for: id)
+        let url = ArtworkCacheService.localURL(for: name)
+        let size = CGSize(width: 600, height: 600)
+        let format = UIGraphicsImageRendererFormat.default()
+        format.opaque = true
+        format.scale = 1
+        let image = UIGraphicsImageRenderer(size: size, format: format).image { ctx in
+            UIColor.systemPink.setFill()
+            ctx.fill(CGRect(origin: .zero, size: size))
+            UIColor.systemIndigo.setFill()
+            ctx.fill(CGRect(x: 0, y: 300, width: 600, height: 300))
+        }
+        guard let data = image.jpegData(compressionQuality: 0.9) else { return nil }
+        do { try data.write(to: url) } catch { return nil }
+        return name
     }
 
     /// 3-секундный 220 Гц WAV в Documents (только для --player).
