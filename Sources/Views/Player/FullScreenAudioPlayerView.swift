@@ -31,13 +31,16 @@ struct FullScreenAudioPlayerView: View {
     private var currentItem: MediaItem? { engine.currentItem }
 
     var body: some View {
-        ZStack {
-            background
+        // GeometryReader — корневой: только он даёт ФАКТИЧЕСКИЙ размер кадра.
+        // Фон и контент получают его явно, ни один слой не навязывает свой
+        // натуральный размер остальным (см. комментарий у background).
+        GeometryReader { geo in
+            ZStack {
+                background(width: geo.size.width, height: geo.size.height)
 
-            if let item = currentItem {
-                GeometryReader { geo in
+                if let item = currentItem {
                     // Квадрат: не шире контейнера и не выше остатка места.
-                    let side = max(120, min(geo.size.width, geo.size.height - chromeHeight, 340))
+                    let side = max(120, min(geo.size.width - 48, geo.size.height - chromeHeight, 340))
 
                     ScrollView(.vertical, showsIndicators: false) {
                         VStack(spacing: 0) {
@@ -72,13 +75,17 @@ struct FullScreenAudioPlayerView: View {
                         }
                         .padding(.horizontal, 24)
                         .padding(.bottom, 16)
+                        .frame(width: geo.size.width, alignment: .leading)
                         .frame(minHeight: geo.size.height)
                     }
                     .scrollIndicators(.hidden)
+                    .frame(width: geo.size.width, height: geo.size.height)
+                } else {
+                    ContentUnavailableView("Ничего не играет", systemImage: "music.note")
+                        .frame(width: geo.size.width, height: geo.size.height)
                 }
-            } else {
-                ContentUnavailableView("Ничего не играет", systemImage: "music.note")
             }
+            .frame(width: geo.size.width, height: geo.size.height)
         }
         .task(id: currentItem?.artworkFileName) { await loadArtwork() }
         .sheet(isPresented: $showQueue) { QueueSheetView() }
@@ -89,14 +96,25 @@ struct FullScreenAudioPlayerView: View {
 
     // MARK: - Фон
 
-    @ViewBuilder
-    private var background: some View {
+    /// Фон ОБЯЗАН иметь точный размер кадра и обрезаться.
+    ///
+    /// Размытая картинка (`resizable().scaledToFill()`) — greedy-вью: она
+    /// докладывает свой натуральный размер (600pt+). ZStack берёт максимум
+    /// размеров детей и предлагает его ВСЕМ остальным — из-за этого весь
+    /// контент плеера раскладывался по ширине картинки, а не экрана:
+    /// заголовок обрезан, кнопки за краями, скраббер от края до края.
+    /// Без обложки фон — Color.black, размер не навязывает, поэтому баг
+    /// проявлялся только у треков с картинкой (воспроизведено на CI-снимке
+    /// player-artwork.png при 375x812).
+    private func background(width: CGFloat, height: CGFloat) -> some View {
         ZStack {
             Color.black
             if let artwork {
                 Image(uiImage: artwork)
                     .resizable()
                     .scaledToFill()
+                    .frame(width: width, height: height)
+                    .clipped()
                     .blur(radius: 90, opaque: true)
                     .saturation(1.35)
                     .opacity(0.6)
@@ -113,10 +131,13 @@ struct FullScreenAudioPlayerView: View {
                         color(palette[2]), color(palette[0]).opacity(0.85)
                     ]
                 )
+                .frame(width: width, height: height)
+                .clipped()
                 .opacity(0.45)
             }
         }
-        .ignoresSafeArea()
+        .frame(width: width, height: height)
+        .clipped()
     }
 
     // MARK: - Обложка
