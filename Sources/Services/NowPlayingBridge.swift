@@ -125,7 +125,7 @@ final class NowPlayingBridge: NSObject {
         }
         center.changePlaybackPositionCommand.addTarget { [weak self] event in
             guard let positionEvent = event as? MPChangePlaybackPositionCommandEvent else { return .commandFailed }
-            DebugLog.shared.add("🎛 remote: seek \(Int(positionEvent.positionTime.seconds))s")
+            DebugLog.shared.add("🎛 remote: seek \(Int(positionEvent.positionTime))s")
             Task { @MainActor in self?.engine?.seek(to: positionEvent.positionTime) }
             return .success
         }
