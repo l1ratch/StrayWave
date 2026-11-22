@@ -27,11 +27,15 @@ final class NowPlayingBridge: NSObject {
         guard let item = engine.currentItem else {
             // Радио: тот же плеер, но MediaItem отсутствует — публикуем станцию.
             if let radio = engine.radioNowPlaying {
+                // Live-стрим публикуется БЕЗ duration + с флагом IsLiveStream:
+                // иначе система считает инфу неполной и глушит транспорт.
                 infoCenter.nowPlayingInfo = [
                     MPMediaItemPropertyTitle: radio.title,
                     MPMediaItemPropertyArtist: radio.subtitle,
+                    MPNowPlayingInfoPropertyIsLiveStream: true,
                     MPNowPlayingInfoPropertyPlaybackRate: engine.isPlaying ? 1.0 : 0.0
                 ]
+                center.likeCommand.state = false
             } else {
                 infoCenter.nowPlayingInfo = nil
             }
@@ -63,9 +67,10 @@ final class NowPlayingBridge: NSObject {
             info[MPMediaItemPropertyArtwork] = image
             DebugLog.shared.add("🖼 nowPlaying: artwork (eager) применён")
         }
-        // Звёздочка на локскрине: MPMediaItemPropertyRating — число 0...1;
-        // сама кнопка появляется, когда приложение поддерживает ratingCommand.
-        info[MPMediaItemPropertyRating] = NSNumber(value: item.isFavorite ? 1.0 : 0.0)
+        // Кнопка like на локскрине — это MPFeedbackCommand (likeCommand),
+        // а НЕ ratingCommand (тот только про maximum/minimum rating).
+        // Состояние звезды синхронизируется при каждой публикации.
+        center.likeCommand.state = item.isFavorite
         infoCenter.nowPlayingInfo = info
         DebugLog.shared.add("🖼 nowPlaying: nowPlayingInfo применён")
     }
@@ -143,15 +148,18 @@ final class NowPlayingBridge: NSObject {
             return .success
         }
 
-        // Звёздочка на локскрине: iOS рисует кнопку рейтинга, когда приложение
-        // поддерживает ratingCommand, а в nowPlayingInfo есть
-        // MPMediaItemPropertyRating (Float 0...1).
-        // Примечание: протокол MPRatingCommandTarget в SDK 26.6 отсутствует —
-        // доступен только блочный addTarget.
-        center.ratingCommand.isEnabled = true
-        center.ratingCommand.addTarget { [weak self] event in
-            guard let ratingEvent = event as? MPRatingCommandEvent else { return .commandFailed }
-            let liked = ratingEvent.rating >= 0.5
+        // Кнопка like (звёздочка/сердечко) на локскрине — MPFeedbackCommand.
+        // location = .primary даёт её в основном наборе кнопок; state
+        // подсвечивает активную. ratingCommand для этого не служит
+        // (только maximum/minimum rating) — проверено по документации Apple.
+        let like = center.likeCommand
+        like.isEnabled = true
+        like.localizedTitle = "Нравится"
+        like.location = .primary
+        like.isNegative = false
+        like.addTarget { [weak self] event in
+            let liked = event.currentState
+            DebugLog.shared.add("🎛 remote: like -> \(liked)")
             Task { @MainActor in self?.engine?.setCurrentItemFavorite(liked) }
             return .success
         }

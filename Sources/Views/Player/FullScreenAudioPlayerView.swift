@@ -31,10 +31,21 @@ struct FullScreenAudioPlayerView: View {
 
             if let item = currentItem {
                 VStack(spacing: 0) {
-                    Capsule()
-                        .fill(.secondary.opacity(0.45))
-                        .frame(width: 40, height: 5)
-                        .padding(.top, 10)
+                    // fullScreenCover не закрывается свайпом — нужна явная кнопка.
+                    HStack {
+                        Spacer()
+                        Button {
+                            dismiss()
+                        } label: {
+                            Image(systemName: "chevron.compact.down")
+                                .font(.system(size: 22, weight: .semibold))
+                                .foregroundStyle(.white.opacity(0.7))
+                                .padding(10)
+                                .contentShape(Rectangle())
+                        }
+                        .accessibilityLabel("Закрыть плеер")
+                    }
+                    .padding(.top, 4)
 
                     Spacer(minLength: 12)
 

@@ -204,10 +204,11 @@ final class MediaPlayerEngine {
         DebugLog.shared.add("⏮ восстановлена очередь: «\(restored.title)» (idx \(index)/\(queueItems.count))")
     }
 
-    /// Избранное текущего трека из локскрина (звёздочка/сердечко).
+    /// Избранное текущего трека из локскрина (кнопка like/heart).
     func setCurrentItemFavorite(_ liked: Bool) {
         guard let item = currentItem else { return }
         item.isFavorite = liked
+        try? item.modelContext?.save()
         try? saveContext?.save()
         nowPlaying?.update()
     }
@@ -347,6 +348,8 @@ final class MediaPlayerEngine {
         let seconds = player.currentTime().seconds
         guard seconds.isFinite, seconds >= 0 else { return }
         item.playbackPosition = seconds
+        // Собственный контекст модели — иначе запись не долетает до стора.
+        try? item.modelContext?.save()
         try? saveContext?.save()
     }
 
@@ -420,6 +423,10 @@ final class MediaPlayerEngine {
         DebugLog.shared.add("▶️ плеер: before nowPlaying.update()")
         nowPlaying?.update()
         DebugLog.shared.add("▶️ плеер: after nowPlaying.update()")
+        // Сохраняем в СОБСТВЕННОМ контексте модели: item пришёл из @Query
+        // контекста представлений, saveContext его не видит — прогресс
+        // переживал перезапуск только благодаря lucky-autosave.
+        try? item.modelContext?.save()
         try? saveContext?.save()
         saveQueueSnapshot()
         DebugLog.shared.add("▶️ плеер: старт завершён (save ok)")
@@ -475,7 +482,10 @@ final class MediaPlayerEngine {
 
     private func configureAudioSession() {
         let session = AVAudioSession.sharedInstance()
-        try? session.setCategory(.playback, mode: isVideoMode ? .moviePlayback : .default, options: [])
+        // Режим .default всегда: в .moviePlayback AVKit перехватывает
+        // remote-команды себе, и после закрытия видеоплеера кнопки локскрина
+        // остаются серыми (команды уходят мёртвому контроллеру).
+        try? session.setCategory(.playback, mode: .default, options: [])
         try? session.setActive(true)
     }
 

@@ -56,13 +56,13 @@ struct RootTabView: View {
             guard selection == .search, app.searchQuery.isEmpty else { return }
             selection = lastNonSearchTab
         }
-        // Лист на весь экран со свайпом вниз. Zoom-переход убран окончательно:
-        // с ним контент листа измерялся в геометрии источника перехода и
-        // «уезжал» за края экрана (подтверждено скриншотом 1.0.30).
-        .sheet(isPresented: $showFullPlayer) {
+        // Раскрытый плеер: fullScreenCover, а не sheet. Лист на iOS 26
+        // измеряется в карточной геометрии с detents — именно из-за этого
+        // содержимое «строилось под широкий экран» (три раунда правок
+        // содержимого это не лечили: виноват был контейнер). У fullScreenCover
+        // размер ровно = окно. Закрытие — явная кнопка в плеере.
+        .fullScreenCover(isPresented: $showFullPlayer) {
             FullScreenAudioPlayerView()
-                .presentationDetents([.large])
-                .presentationDragIndicator(.hidden)
         }
         // Видео: только системный AVPlayerViewController — со своим крестиком,
         // PiP, Live Text и скоростями. Своего оверлея больше не рисуем.
