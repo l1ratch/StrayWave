@@ -18,43 +18,25 @@ struct VideoLibraryView: View {
 
     var body: some View {
         NavigationStack(path: $path) {
-            Group {
-                if items.isEmpty {
-                    ContentUnavailableView {
-                        Label("Видео пока нет", systemImage: "film")
-                    } description: {
-                        Text("Скопируйте mp4/mov/m4v в папку StrayWave в «Файлах» или добавьте кнопкой «+» — они появятся здесь автоматически.")
-                    }
-                } else {
-                    content
-                }
-            }
-            .navigationTitle("")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Text("Видео")
-                        .font(.largeTitle.weight(.bold))
-                }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Menu {
-                        Button {
-                            FilePickerPresenter.present { urls in
-                                Task { await app.importer.importFromFiles(urls: urls) }
-                            }
-                        } label: {
-                            Label("Добавить из «Файлов»…", systemImage: "folder")
+            ScrollView {
+                VStack(alignment: .leading, spacing: 0) {
+                    header
+                    if items.isEmpty {
+                        ContentUnavailableView {
+                            Label("Видео пока нет", systemImage: "film")
+                        } description: {
+                            Text("Скопируйте mp4/mov/m4v в папку StrayWave в «Файлах» или добавьте кнопкой «+» — они появятся здесь автоматически.")
                         }
-                        Button {
-                            showCreatePlaylist = true
-                        } label: {
-                            Label("Новый плейлист", systemImage: "music.note.list")
-                        }
-                    } label: {
-                        Image(systemName: "plus")
+                        .padding(.top, 60)
+                    } else {
+                        rows
                     }
                 }
             }
+            .scrollIndicators(.hidden)
+            // См. MusicLibraryView: навбар скрыт, заголовок и «+» — в одной
+            // строке внутри контента.
+            .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(for: VideoRoute.self) { route in
                 switch route {
                 case .all: VideoAllPage()
@@ -71,26 +53,53 @@ struct VideoLibraryView: View {
         }
     }
 
-    private var content: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 0) {
-                categoryRow("Плейлисты", icon: "music.note.list") { path.append(VideoRoute.playlists) }
-                divider
-                categoryRow("Избранное", icon: "heart") { path.append(VideoRoute.favorites) }
-
-                if !recent.isEmpty {
-                    Text("Недавно добавленные")
-                        .font(.title3.weight(.bold))
-                        .padding(.horizontal, 20)
-                        .padding(.top, 26)
-                        .padding(.bottom, 12)
-                    VideoGrid(items: recent)
-                        .padding(.horizontal, 20)
+    private var header: some View {
+        HStack(alignment: .firstTextBaseline) {
+            Text("Видео")
+                .font(.system(size: 32, weight: .bold))
+            Spacer()
+            Menu {
+                Button {
+                    FilePickerPresenter.present { urls in
+                        Task { await app.importer.importFromFiles(urls: urls) }
+                    }
+                } label: {
+                    Label("Добавить из «Файлов»…", systemImage: "folder")
                 }
+                Button {
+                    showCreatePlaylist = true
+                } label: {
+                    Label("Новый плейлист", systemImage: "music.note.list")
+                }
+            } label: {
+                Image(systemName: "plus")
+                    .font(.title3.weight(.medium))
+                    .frame(width: 36, height: 36)
+                    .background(.thinMaterial, in: Circle())
             }
-            .padding(.vertical, 8)
         }
-        .scrollIndicators(.hidden)
+        .padding(.horizontal, 20)
+        .padding(.top, 6)
+        .padding(.bottom, 12)
+    }
+
+    private var rows: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            categoryRow("Плейлисты", icon: "music.note.list") { path.append(VideoRoute.playlists) }
+            divider
+            categoryRow("Избранное", icon: "heart") { path.append(VideoRoute.favorites) }
+
+            if !recent.isEmpty {
+                Text("Недавно добавленные")
+                    .font(.title3.weight(.bold))
+                    .padding(.horizontal, 20)
+                    .padding(.top, 26)
+                    .padding(.bottom, 12)
+                VideoGrid(items: recent)
+                    .padding(.horizontal, 20)
+            }
+        }
+        .padding(.bottom, 12)
     }
 
     private func categoryRow(_ title: String, icon: String, action: @escaping () -> Void) -> some View {

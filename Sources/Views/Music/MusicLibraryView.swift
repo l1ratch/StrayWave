@@ -25,49 +25,27 @@ struct MusicLibraryView: View {
 
     var body: some View {
         NavigationStack(path: $path) {
-            Group {
-                if items.isEmpty {
-                    ContentUnavailableView {
-                        Label("Музыки пока нет", systemImage: "music.note")
-                    } description: {
-                        Text("Скопируйте файлы в папку StrayWave в приложении «Файлы» или добавьте их кнопкой «+» — треки появятся автоматически.")
-                    }
-                } else {
-                    content
-                }
-            }
-            // Заголовок в одну строку с кнопками: слот .principal — та же
-            // строка навбара; крупный шрифт даёт «медиатечный» вид.
-            .navigationTitle("")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                // topBarLeading, а не principal: principal-слот система
-                // центрирует по содержимому даже с maxWidth: .infinity
-                // (проверено на скриншотах CI). Leading-слот физически у
-                // левого края — как крупный титул медиатеки Apple Music.
-                ToolbarItem(placement: .topBarLeading) {
-                    Text("Музыка")
-                        .font(.largeTitle.weight(.bold))
-                }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Menu {
-                        Button {
-                            FilePickerPresenter.present { urls in
-                                Task { await app.importer.importFromFiles(urls: urls) }
-                            }
-                        } label: {
-                            Label("Добавить из «Файлов»…", systemImage: "folder")
+            ScrollView {
+                VStack(alignment: .leading, spacing: 0) {
+                    header
+                    if items.isEmpty {
+                        ContentUnavailableView {
+                            Label("Музыки пока нет", systemImage: "music.note")
+                        } description: {
+                            Text("Скопируйте файлы в папку StrayWave в приложении «Файлы» или добавьте их кнопкой «+» — треки появятся автоматически.")
                         }
-                        Button {
-                            showCreatePlaylist = true
-                        } label: {
-                            Label("Новый плейлист", systemImage: "music.note.list")
-                        }
-                    } label: {
-                        Image(systemName: "plus")
+                        .padding(.top, 60)
+                    } else {
+                        rows
                     }
                 }
             }
+            .scrollIndicators(.hidden)
+            // Навбар скрыт, как в медиатеке Apple Music: крупный заголовок и
+            // кнопка «+» живут в одной строке внутри контента. Системные
+            // слоты (principal/leading) не дают ни «от левого края + в одну
+            // строку», ни крупного кегля — проверено скриншотами CI.
+            .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(for: MusicRoute.self) { route in
                 switch route {
                 case .songs: SongsPage(kind: .audio)
@@ -88,26 +66,53 @@ struct MusicLibraryView: View {
         }
     }
 
-    private var content: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 0) {
-                categoryRow("Все треки", icon: "music.note") { path.append(MusicRoute.songs) }
-                divider
-                categoryRow("Избранное", icon: "heart") { path.append(MusicRoute.favorites) }
-
-                if !audioPlaylists.isEmpty {
-                    Text("Плейлисты")
-                        .font(.title3.weight(.bold))
-                        .padding(.horizontal, 20)
-                        .padding(.top, 26)
-                        .padding(.bottom, 12)
-                    PlaylistGrid(kind: .audio)
-                        .padding(.horizontal, 20)
+    private var header: some View {
+        HStack(alignment: .firstTextBaseline) {
+            Text("Музыка")
+                .font(.system(size: 32, weight: .bold))
+            Spacer()
+            Menu {
+                Button {
+                    FilePickerPresenter.present { urls in
+                        Task { await app.importer.importFromFiles(urls: urls) }
+                    }
+                } label: {
+                    Label("Добавить из «Файлов»…", systemImage: "folder")
                 }
+                Button {
+                    showCreatePlaylist = true
+                } label: {
+                    Label("Новый плейлист", systemImage: "music.note.list")
+                }
+            } label: {
+                Image(systemName: "plus")
+                    .font(.title3.weight(.medium))
+                    .frame(width: 36, height: 36)
+                    .background(.thinMaterial, in: Circle())
             }
-            .padding(.vertical, 8)
         }
-        .scrollIndicators(.hidden)
+        .padding(.horizontal, 20)
+        .padding(.top, 6)
+        .padding(.bottom, 12)
+    }
+
+    private var rows: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            categoryRow("Все треки", icon: "music.note") { path.append(MusicRoute.songs) }
+            divider
+            categoryRow("Избранное", icon: "heart") { path.append(MusicRoute.favorites) }
+
+            if !audioPlaylists.isEmpty {
+                Text("Плейлисты")
+                    .font(.title3.weight(.bold))
+                    .padding(.horizontal, 20)
+                    .padding(.top, 26)
+                    .padding(.bottom, 12)
+                PlaylistGrid(kind: .audio)
+                    .padding(.horizontal, 20)
+            }
+        }
+        .padding(.bottom, 12)
     }
 
     private func categoryRow(_ title: String, icon: String, action: @escaping () -> Void) -> some View {
