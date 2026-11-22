@@ -50,23 +50,25 @@ jobs:
       - name: Boot simulator and capture each tab
         run: |
           set -e
-          # Устройство пользователя: 375x812 pt. Снимаем ИМЕННО на нём —
-          # предыдущие проверки шли на 402x874 и баг не воспроизводился.
-          UDID=$(xcrun simctl list devices available --json | python3 -c '
+          # Устройство пользователя: 375x812 pt. Создаём симулятор ровно
+          # с этой геометрией — на 402x874 баг не воспроизводился.
+          RUNTIME=$(xcrun simctl list runtimes available --json | python3 -c '
           import json,sys
-          data = json.load(sys.stdin)
-          preferred = ["iPhone SE (3rd generation)", "iPhone 13 mini", "iPhone 12 mini",
-                       "iPhone 11 Pro", "iPhone XS", "iPhone X"]
-          devices = [d for ds in data["devices"].values() for d in ds if d.get("isAvailable")]
-          for name in preferred:
-              for d in devices:
-                  if d["name"] == name:
-                      print(d["udid"]); sys.exit(0)
-          for d in devices:
-              if d["name"].startswith("iPhone"):
-                  print(d["udid"]); sys.exit(0)
+          rs=[r for r in json.load(sys.stdin)["runtimes"] if r.get("isAvailable") and "iOS" in r["name"]]
+          print(sorted(rs, key=lambda r: r["version"])[-1]["identifier"])')
+          DEVTYPE=$(xcrun simctl list devicetypes --json | python3 -c '
+          import json,sys
+          ds=json.load(sys.stdin)["devicetypes"]
+          for want in ["iPhone-13-mini","iPhone-12-mini","iPhone-SE-3rd-generation","iPhone-11-Pro","iPhone-Xs","iPhone-X"]:
+              for d in ds:
+                  if d["identifier"].endswith(want):
+                      print(d["identifier"]); sys.exit(0)
+          for d in ds:
+              if "iPhone" in d["identifier"]:
+                  print(d["identifier"]); sys.exit(0)
           sys.exit(1)')
-          echo "Using simulator: $(xcrun simctl list devices | grep "$UDID" || true)"
+          echo "runtime=$RUNTIME devtype=$DEVTYPE"
+          UDID=$(xcrun simctl create "SW-375" "$DEVTYPE" "$RUNTIME")
           xcrun simctl boot "$UDID"
           APP=$(find build-sim -name "StrayWave.app" -type d | head -n 1)
           xcrun simctl install "$UDID" "$APP"
