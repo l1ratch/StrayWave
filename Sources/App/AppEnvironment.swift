@@ -1,6 +1,7 @@
 import Foundation
 import SwiftUI
 import SwiftData
+import AVFoundation
 
 /// Общий контейнер сервисов приложения. Доступен и из AppIntents (без расширений).
 @MainActor @Observable
@@ -39,20 +40,51 @@ final class AppEnvironment {
         // сразу, кнопка «играть» продолжает с сохранённой позиции.
         engine.restoreLastQueue()
 
-        // Режим CI-скриншота: сидим несуществующий демо-трек, чтобы
-        // раннер мог снять раскрытый плеер (данные нужны для диагностики
-        // вёрстки, а не догадки).
-        if CommandLine.arguments.contains("--player") {
+        // Режим CI-скриншота: генерим короткий тональный WAV и сидим им
+        // демо-трек, чтобы раннер снял раскрытый плеер с РЕАЛЬНЫМ контентом.
+        if CommandLine.arguments.contains("--player"),
+           let toneName = Self.makeScreenshotToneFile() {
             let demo = MediaItem(
                 kind: .audio,
                 storageType: .localDocuments,
+                relativePath: toneName,
                 title: "Демо-трек для снимка",
                 artist: "StrayWave",
                 album: "Debug",
-                duration: 212
+                duration: 3
             )
             engine.playItems([demo], startAt: 0)
         }
+    }
+
+    /// 3-секундный 220 Гц WAV в Documents (только для --player).
+    private static func makeScreenshotToneFile() -> String? {
+        let name = "screenshot-demo.wav"
+        let url = LibraryPathResolver.documentsDirectory.appendingPathComponent(name)
+        if FileManager.default.fileExists(atPath: url.path) { return name }
+        let sampleRate = 44100.0
+        let seconds = 3.0
+        let settings: [String: Any] = [
+            AVFormatIDKey: kAudioFormatLinearPCM,
+            AVSampleRateKey: sampleRate,
+            AVNumberOfChannelsKey: 1,
+            AVLinearPCMBitDepthKey: 16,
+            AVLinearPCMIsFloatKey: false,
+            AVLinearPCMIsBigEndianKey: false,
+            AVLinearPCMIsNonInterleaved: false
+        ]
+        guard let file = try? AVAudioFile(forWriting: url, settings: settings),
+              let buffer = AVAudioPCMBuffer(pcmFormat: file.processingFormat,
+                                            frameCapacity: AVAudioFrameCount(sampleRate * seconds)),
+              let channel = buffer.floatChannelData?[0] else { return nil }
+        let frames = AVAudioFrameCount(sampleRate * seconds)
+        buffer.frameLength = frames
+        for i in 0..<Int(frames) {
+            let t = Double(i) / sampleRate
+            channel[i] = Float(sin(2 * Double.pi * 220 * t) * 0.2)
+        }
+        do { try file.write(from: buffer) } catch { return nil }
+        return name
     }
 
     /// Сканирование с защитой от наложения: повторный запрос во время

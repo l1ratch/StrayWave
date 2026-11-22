@@ -380,6 +380,17 @@ final class MediaPlayerEngine {
             let forceFresh = freshStart && offset == 0
             if let avItem = makePlayerItem(for: item, fresh: forceFresh) { player.insert(avItem, after: nil) }
         }
+        // Ни один item не загрузился (пропали файлы): очищаем очередь вместо
+        // взаимной рекурсии play() <-> rebuildPlayer, которая переполняла стек.
+        if player.currentItem == nil, !queueItems[startIndex...].isEmpty {
+            DebugLog.shared.add("⚠️ плеер: ни один item не загрузился — очередь очищена")
+            queueLogic.replaceQueue([], currentID: nil)
+            syncQueueMirror()
+            currentItemDidChange(resume: false)
+            isPlaying = false
+            nowPlaying?.update()
+            return
+        }
         releaseUnusedSecurityScopes()
         currentItemDidChange(resume: resume)
 
