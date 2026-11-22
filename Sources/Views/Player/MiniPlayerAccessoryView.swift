@@ -127,25 +127,34 @@ struct MiniPlayerAccessoryView: View {
 
     // MARK: - Пусто
 
+    /// Как в Apple Music: не скелет, а «неиграющий» трек — те же элементы,
+    /// серые и неактивные.
     private var placeholder: some View {
         HStack(spacing: 12) {
             RoundedRectangle(cornerRadius: 7, style: .continuous)
                 .fill(.quaternary)
                 .frame(width: 34, height: 34)
+                .overlay(
+                    Image(systemName: "music.note")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                )
 
-            VStack(alignment: .leading, spacing: 5) {
-                Capsule()
-                    .fill(.quaternary)
-                    .frame(width: 120, height: 6)
-                Capsule()
-                    .fill(.quinary)
-                    .frame(width: 80, height: 5)
+            VStack(alignment: .leading, spacing: 1) {
+                Text("Не воспроизводится")
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                Text("StrayWave")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+                    .lineLimit(1)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
             Image(systemName: "play.fill")
                 .font(.title3)
-                .foregroundStyle(.tertiary)
+                .foregroundStyle(.quinary)
 
             Image(systemName: "heart")
                 .font(.title3)
@@ -153,7 +162,7 @@ struct MiniPlayerAccessoryView: View {
         }
         .padding(.horizontal, 12)
         // Высота как у живой карточки: аксессуар не «прыгает».
-        .padding(.vertical, 9)
+        .padding(.vertical, 6)
         .allowsHitTesting(false)
     }
 }

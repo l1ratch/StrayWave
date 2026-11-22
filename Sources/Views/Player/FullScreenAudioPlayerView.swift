@@ -51,9 +51,6 @@ struct FullScreenAudioPlayerView: View {
                     transport
                         .padding(.bottom, 14)
 
-                    volumeRow
-                        .padding(.bottom, 10)
-
                     actionBar(item: item)
                         .padding(.bottom, 8)
                 }
@@ -283,27 +280,6 @@ struct FullScreenAudioPlayerView: View {
         .buttonStyle(.plain)
         .accessibilityLabel(label)
         .accessibilityValue(isOn ? "вкл" : "выкл")
-    }
-
-    // MARK: - Громкость
-
-    private var volumeRow: some View {
-        HStack(spacing: 10) {
-            Image(systemName: "speaker.fill")
-                .font(.caption)
-                .foregroundStyle(.white.opacity(0.6))
-            CapsuleSlider(
-                value: Binding(get: { Double(engine.volume) }, set: { engine.volume = Float($0) }),
-                range: 0 ... 1,
-                idleHeight: 4,
-                activeHeight: 7,
-                fillColor: .white.opacity(0.85)
-            )
-            .frame(height: 18)
-            Image(systemName: "speaker.wave.3.fill")
-                .font(.caption)
-                .foregroundStyle(.white.opacity(0.6))
-        }
     }
 
     // MARK: - Нижний ряд

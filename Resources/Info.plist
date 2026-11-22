@@ -30,6 +30,13 @@
 	<array>
 		<string>audio</string>
 	</array>
+	<!-- Только портрет: на части устройств листы адаптировались под ландшафт
+	     («плеер думает, что телефон на боку») — фиксируем ориентацию. -->
+	<key>UISupportedInterfaceOrientations</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+		<string>UIInterfaceOrientationPortraitUpsideDown</string>
+	</array>
 	<!-- Радио: большинство региональных потоков идут по http без TLS. -->
 	<key>NSAppTransportSecurity</key>
 	<dict>

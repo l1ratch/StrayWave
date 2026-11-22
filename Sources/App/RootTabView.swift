@@ -26,16 +26,22 @@ struct RootTabView: View {
     @State private var selection: AppTab = AppTab.fromLaunchEnvironment()
     @State private var lastNonSearchTab: AppTab = .music
     @State private var showFullPlayer = false
+    @State private var showVideoPlayer = false
 
     var body: some View {
         @Bindable var importer = importer
 
-        // Мини-плеер присутствует всегда: без трека — пустой шаблон-маска,
+        // Мини-плеер присутствует всегда: без трека — «Не воспроизводится»,
         // с треком — живые данные.
         tabView
             .tabViewBottomAccessory {
                 MiniPlayerAccessoryView {
-                    showFullPlayer = true
+                    // Видео раскрываем системным видеоплеером, аудио — своим.
+                    if engine.currentItem?.kind == .video {
+                        showVideoPlayer = true
+                    } else {
+                        showFullPlayer = true
+                    }
                 }
             }
         .onChange(of: selection) { old, new in
@@ -57,6 +63,11 @@ struct RootTabView: View {
             FullScreenAudioPlayerView()
                 .presentationDetents([.large])
                 .presentationDragIndicator(.hidden)
+        }
+        // Видео: только системный AVPlayerViewController — со своим крестиком,
+        // PiP, Live Text и скоростями. Своего оверлея больше не рисуем.
+        .fullScreenCover(isPresented: $showVideoPlayer) {
+            NativeVideoPlayerScreen()
         }
         // Собственный оверлей-баннер вместо .alert: системный алерт в
         // иерархии TabView мог не показываться, поэтому этапы импорта были

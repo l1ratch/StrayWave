@@ -4,13 +4,18 @@ import UIKit
 
 /// Синхронизация с локскрином / Dynamic Island / AirPods / Apple Watch.
 @MainActor
-final class NowPlayingBridge {
+final class NowPlayingBridge: NSObject {
     private weak var engine: MediaPlayerEngine?
     private let center = MPRemoteCommandCenter.shared()
     private let infoCenter = MPNowPlayingInfoCenter.default()
 
+    override init() {
+        super.init()
+    }
+
     init(engine: MediaPlayerEngine) {
         self.engine = engine
+        super.init()
         // Без этого локскрин показывает заголовок, но кнопки play/pause
         // неактивны, а тап по обложке уходит не в приложение.
         UIApplication.shared.beginReceivingRemoteControlEvents()
@@ -129,14 +134,11 @@ final class NowPlayingBridge {
 
         // Звёздочка на локскрине: iOS рисует кнопку рейтинга, когда приложение
         // поддерживает ratingCommand, а в nowPlayingInfo есть
-        // MPMediaItemPropertyRating (Float 0...1).
+        // MPMediaItemPropertyRating (Float 0...1). Блочный addTarget здесь не
+        // годился: документированный путь — протокол MPRatingCommandTarget с
+        // ответом .allowRatings (система спрашивает разрешение именно так).
         center.ratingCommand.isEnabled = true
-        center.ratingCommand.addTarget { [weak self] event in
-            guard let ratingEvent = event as? MPRatingCommandEvent else { return .commandFailed }
-            let liked = ratingEvent.rating >= 0.5
-            Task { @MainActor in self?.engine?.setCurrentItemFavorite(liked) }
-            return .success
-        }
+        center.ratingCommand.addTarget(self)
     }
 
     /// Переинтерфейсить интервалы после изменения настройки (без перезапуска).
@@ -144,5 +146,17 @@ final class NowPlayingBridge {
         let interval = AppConfig.skipInterval
         center.skipForwardCommand.preferredIntervals = [NSNumber(value: interval)]
         center.skipBackwardCommand.preferredIntervals = [NSNumber(value: interval)]
+    }
+}
+
+// MARK: - Рейтинг (звёздочка «в избранное» на локскрине)
+
+extension NowPlayingBridge: MPRatingCommandTarget {
+    nonisolated func ratingCommandTarget(_ event: MPRatingCommandEvent) -> MPRatingCommandHandlerPermission {
+        let liked = event.rating >= 0.5
+        Task { @MainActor [weak self] in
+            self?.engine?.setCurrentItemFavorite(liked)
+        }
+        return .allowRatings
     }
 }

@@ -201,6 +201,12 @@ struct MediaTrackRows: View {
     }
 
     private func play(_ item: MediaItem) {
+        // Уже открытое/закрытое, но всё ещё текущее видео — просто показываем
+        // плеер заново, без перезапуска с нуля.
+        if presentsVideoPlayer, engine.currentItem?.id == item.id {
+            showPlayer = true
+            return
+        }
         let index = items.firstIndex(where: { $0.id == item.id }) ?? 0
         if presentsVideoPlayer {
             engine.playSingle(item)
@@ -687,6 +693,11 @@ struct VideoGrid: View {
     }
 
     private func play(_ item: MediaItem) {
+        // Текущее видео открываем без перезапуска (см. MediaTrackRows).
+        if engine.currentItem?.id == item.id {
+            showPlayer = true
+            return
+        }
         let index = items.firstIndex(where: { $0.id == item.id }) ?? 0
         engine.playItems(items, startAt: index)
         showPlayer = true

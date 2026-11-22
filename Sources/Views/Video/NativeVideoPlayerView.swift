@@ -23,32 +23,17 @@ struct NativeVideoPlayerView: UIViewControllerRepresentable {
 }
 
 /// Полноэкранная презентация видео поверх основного UI.
+/// Крестик НЕ рисуем сами: у системного AVPlayerViewController уже есть
+/// своя кнопка закрытия, наш оверлей был лишним.
 struct NativeVideoPlayerScreen: View {
-    @Environment(\.dismiss) private var dismiss
     @Environment(MediaPlayerEngine.self) private var engine
 
     var body: some View {
-        ZStack(alignment: .topLeading) {
-            NativeVideoPlayerView(player: engine.player)
-                .ignoresSafeArea()
-
-            Button {
+        NativeVideoPlayerView(player: engine.player)
+            .ignoresSafeArea()
+            .onDisappear {
+                // Позиция сохраняется и при сворачивании в PiP, и при выходе.
                 engine.savePlaybackPosition()
-                if !AVPictureInPictureController.isPictureInPictureSupported() {
-                    engine.pause()
-                }
-                dismiss()
-            } label: {
-                Image(systemName: "xmark.circle.fill")
-                    .font(.title)
-                    .symbolRenderingMode(.palette)
-                    .foregroundStyle(.white, .black.opacity(0.5))
-                    .padding()
             }
-        }
-        .onDisappear {
-            // Позиция сохраняется и при сворачивании в PiP, и при выходе.
-            engine.savePlaybackPosition()
-        }
     }
 }
