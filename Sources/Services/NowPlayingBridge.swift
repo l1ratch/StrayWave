@@ -35,7 +35,7 @@ final class NowPlayingBridge: NSObject {
                     MPNowPlayingInfoPropertyIsLiveStream: true,
                     MPNowPlayingInfoPropertyPlaybackRate: engine.isPlaying ? 1.0 : 0.0
                 ]
-                center.likeCommand.state = false
+                center.likeCommand.isActive = false
             } else {
                 infoCenter.nowPlayingInfo = nil
             }
@@ -70,7 +70,7 @@ final class NowPlayingBridge: NSObject {
         // Кнопка like на локскрине — это MPFeedbackCommand (likeCommand),
         // а НЕ ratingCommand (тот только про maximum/minimum rating).
         // Состояние звезды синхронизируется при каждой публикации.
-        center.likeCommand.state = item.isFavorite
+        center.likeCommand.isActive = item.isFavorite
         infoCenter.nowPlayingInfo = info
         DebugLog.shared.add("🖼 nowPlaying: nowPlayingInfo применён")
     }
@@ -149,18 +149,15 @@ final class NowPlayingBridge: NSObject {
         }
 
         // Кнопка like (звёздочка/сердечко) на локскрине — MPFeedbackCommand.
-        // location = .primary даёт её в основном наборе кнопок; state
-        // подсвечивает активную. ratingCommand для этого не служит
         // (только maximum/minimum rating) — проверено по документации Apple.
+        // Swift-оверлей класса: isActive/localizedTitle; location/isNegative
+        // в SDK 26.6 не экспортированы — их задаёт система.
         let like = center.likeCommand
         like.isEnabled = true
         like.localizedTitle = "Нравится"
-        like.location = .primary
-        like.isNegative = false
-        like.addTarget { [weak self] event in
-            let liked = event.currentState
-            DebugLog.shared.add("🎛 remote: like -> \(liked)")
-            Task { @MainActor in self?.engine?.setCurrentItemFavorite(liked) }
+        like.addTarget { [weak self] _ in
+            DebugLog.shared.add("🎛 remote: like tapped")
+            Task { @MainActor in self?.engine?.toggleCurrentItemFavorite() }
             return .success
         }
     }

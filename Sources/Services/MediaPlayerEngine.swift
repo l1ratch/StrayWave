@@ -213,6 +213,12 @@ final class MediaPlayerEngine {
         nowPlaying?.update()
     }
 
+    /// Тап по кнопке like на локскрине: система не присылает новое состояние —
+    /// приложение переключает его само (документация MPFeedbackCommand).
+    func toggleCurrentItemFavorite() {
+        setCurrentItemFavorite(!(currentItem?.isFavorite ?? false))
+    }
+
     func play() {
         // Радио: play/pause на локскрине управляют потоком, хук библиотеки
         // их не касается.
