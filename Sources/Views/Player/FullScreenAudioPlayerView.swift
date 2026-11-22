@@ -100,25 +100,36 @@ struct FullScreenAudioPlayerView: View {
 
     // MARK: - Обложка
 
-    @ViewBuilder
+    /// Квадрат с ДЕТЕРМИНИРОВАННОЙ геометрией. Раньше цепочка
+    /// aspectRatio+frame(maxWidth:) с greedy scaledToFill внутри давала
+    /// вертикально растянутый прямоугольник (видно на CI-скриншоте
+    /// player.png) — это и был «уезжающий/широкий» плеер. Теперь сторона
+    /// считается явно из предложенного места, ничего не может выйти за
+    /// границы: локальный GeometryReader безопасен (корневой убран).
     private func artworkBlock(item: MediaItem) -> some View {
-        Group {
-            if let artwork {
-                Image(uiImage: artwork)
-                    .resizable()
-                    .scaledToFill()
-            } else {
-                ArtworkImage(item: item, size: nil)
-            }
+        GeometryReader { geo in
+            let side = min(geo.size.width, geo.size.height, 340)
+            artworkImage(item: item)
+                .frame(width: side, height: side)
+                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .shadow(color: .black.opacity(0.35), radius: 24, y: 14)
+                .scaleEffect(engine.isPlaying ? 1.0 : 0.9)
+                .animation(.spring(response: 0.45, dampingFraction: 0.75), value: engine.isPlaying)
+                .offset(x: artworkDrag)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .gesture(artworkDragGesture())
         }
-        .aspectRatio(1, contentMode: .fit)
-        .frame(maxWidth: 340)
-        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-        .shadow(color: .black.opacity(0.35), radius: 24, y: 14)
-        .scaleEffect(engine.isPlaying ? 1.0 : 0.9)
-        .animation(.spring(response: 0.45, dampingFraction: 0.75), value: engine.isPlaying)
-        .offset(x: artworkDrag)
-        .gesture(artworkDragGesture())
+    }
+
+    @ViewBuilder
+    private func artworkImage(item: MediaItem) -> some View {
+        if let artwork {
+            Image(uiImage: artwork)
+                .resizable()
+                .scaledToFill()
+        } else {
+            ArtworkImage(item: item, size: nil)
+        }
     }
 
     private func artworkDragGesture() -> some Gesture {
