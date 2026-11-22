@@ -134,11 +134,16 @@ final class NowPlayingBridge: NSObject {
 
         // Звёздочка на локскрине: iOS рисует кнопку рейтинга, когда приложение
         // поддерживает ratingCommand, а в nowPlayingInfo есть
-        // MPMediaItemPropertyRating (Float 0...1). Блочный addTarget здесь не
-        // годился: документированный путь — протокол MPRatingCommandTarget с
-        // ответом .allowRatings (система спрашивает разрешение именно так).
+        // MPMediaItemPropertyRating (Float 0...1).
+        // Примечание: протокол MPRatingCommandTarget в SDK 26.6 отсутствует —
+        // доступен только блочный addTarget.
         center.ratingCommand.isEnabled = true
-        center.ratingCommand.addTarget(self)
+        center.ratingCommand.addTarget { [weak self] event in
+            guard let ratingEvent = event as? MPRatingCommandEvent else { return .commandFailed }
+            let liked = ratingEvent.rating >= 0.5
+            Task { @MainActor in self?.engine?.setCurrentItemFavorite(liked) }
+            return .success
+        }
     }
 
     /// Переинтерфейсить интервалы после изменения настройки (без перезапуска).
@@ -146,17 +151,5 @@ final class NowPlayingBridge: NSObject {
         let interval = AppConfig.skipInterval
         center.skipForwardCommand.preferredIntervals = [NSNumber(value: interval)]
         center.skipBackwardCommand.preferredIntervals = [NSNumber(value: interval)]
-    }
-}
-
-// MARK: - Рейтинг (звёздочка «в избранное» на локскрине)
-
-extension NowPlayingBridge: MPRatingCommandTarget {
-    nonisolated func ratingCommandTarget(_ event: MPRatingCommandEvent) -> MPRatingCommandHandlerPermission {
-        let liked = event.rating >= 0.5
-        Task { @MainActor [weak self] in
-            self?.engine?.setCurrentItemFavorite(liked)
-        }
-        return .allowRatings
     }
 }
