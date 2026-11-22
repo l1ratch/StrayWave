@@ -110,8 +110,15 @@ struct FullScreenAudioPlayerView: View {
     }
 
     private func artworkBlock(item: MediaItem) -> some View {
-        artworkImage(item: item)
+        // Color.clear фиксирует геометрию приказом: он не торгуется за
+        // размер, overlay получает ровно квадрат, clipped режет любое
+        // greedy содержимое (плейсхолдер убегал из frame(width:height:)).
+        Color.clear
             .frame(width: artworkSide, height: artworkSide)
+            .overlay {
+                artworkImage(item: item)
+            }
+            .clipped()
             .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
             .shadow(color: .black.opacity(0.35), radius: 24, y: 14)
             .scaleEffect(engine.isPlaying ? 1.0 : 0.9)
